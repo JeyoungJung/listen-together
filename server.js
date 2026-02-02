@@ -42,7 +42,8 @@ app.prepare().then(() => {
   // Server-side polling of host's playback
   async function pollHostPlayback() {
     try {
-      const response = await fetch(`http://${hostname}:${port}/api/host/playback`);
+      // Add timestamp to bust any caching
+      const response = await fetch(`http://${hostname}:${port}/api/host/playback?t=${Date.now()}`);
       
       if (!response.ok) {
         if (response.status === 401) {
