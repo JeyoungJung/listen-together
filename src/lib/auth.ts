@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import SpotifyProvider from "next-auth/providers/spotify";
+import { saveHostTokens } from "./hostTokenStore";
 
 const HOST_SPOTIFY_ID = process.env.HOST_SPOTIFY_ID;
 
@@ -73,13 +74,25 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account, user }) {
       // Initial sign in
       if (account && user) {
-        return {
+        const newToken = {
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at ? account.expires_at * 1000 : Date.now() + 3600 * 1000,
           userId: user.id,
         };
+
+        // If this is the host, save their tokens for server-side polling
+        if (user.id === HOST_SPOTIFY_ID) {
+          console.log("Host logged in, saving tokens for background polling");
+          saveHostTokens({
+            accessToken: account.access_token || "",
+            refreshToken: account.refresh_token || "",
+            expiresAt: newToken.expiresAt,
+          });
+        }
+
+        return newToken;
       }
 
       // Return previous token if the access token has not expired yet

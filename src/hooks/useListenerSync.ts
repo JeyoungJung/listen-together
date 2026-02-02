@@ -20,9 +20,6 @@ interface UseListenerSyncReturn {
   manualSync: () => void;
 }
 
-// Threshold for position drift before forcing a sync (in milliseconds)
-const SYNC_THRESHOLD_MS = 3000;
-
 export function useListenerSync({
   socket,
   isListener,
@@ -35,89 +32,7 @@ export function useListenerSync({
   );
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const isSyncingRef = useRef(false);
-
-  const syncToHost = useCallback(
-    async (update: HostUpdate) => {
-      if (!deviceId || !update.trackUri || isSyncingRef.current) {
-        return;
-      }
-
-      isSyncingRef.current = true;
-      setSyncStatus("syncing");
-
-      try {
-        // Calculate the expected position based on time elapsed since the update
-        const timeSinceUpdate = Date.now() - update.timestamp;
-        const expectedPosition = update.isPlaying
-          ? update.progressMs + timeSinceUpdate
-          : update.progressMs;
-
-        // Clamp to track duration
-        const clampedPosition = Math.min(expectedPosition, update.durationMs);
-
-        if (update.isPlaying) {
-          // Play the track at the calculated position
-          const response = await fetch("/api/spotify/play", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              trackUri: update.trackUri,
-              positionMs: Math.max(0, clampedPosition),
-              deviceId,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to sync playback");
-          }
-        } else {
-          // If host is paused, pause the listener too
-          await fetch("/api/spotify/play", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "pause",
-              deviceId,
-            }),
-          });
-        }
-
-        setSyncStatus("synced");
-        setLastSyncTime(Date.now());
-        setError(null);
-        onSync?.(update);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Sync failed";
-        setError(errorMessage);
-        setSyncStatus("error");
-        console.error("Error syncing to host:", err);
-      } finally {
-        isSyncingRef.current = false;
-      }
-    },
-    [deviceId, onSync]
-  );
-
-  const handleHostUpdate = useCallback(
-    (update: HostUpdate) => {
-      console.log("Received host update:", update.trackName, update.isPlaying);
-      setHostState(update);
-
-      if (!isListener || !deviceId) return;
-
-      // Check if we need to sync (track changed, or significant position drift)
-      const needsSync =
-        !hostState ||
-        hostState.trackUri !== update.trackUri ||
-        hostState.isPlaying !== update.isPlaying;
-
-      if (needsSync) {
-        syncToHost(update);
-      }
-    },
-    [isListener, deviceId, hostState, syncToHost]
-  );
+  const hasRequestedInitialSync = useRef(false);
 
   const manualSync = useCallback(() => {
     if (socket && socket.connected) {
@@ -126,20 +41,25 @@ export function useListenerSync({
     }
   }, [socket]);
 
-  // Listen for host updates
+  // Listen for host updates (works for anyone with a socket connection)
   useEffect(() => {
-    if (!socket || !isListener) return;
+    if (!socket) return;
+
+    const handleHostUpdate = (update: HostUpdate) => {
+      console.log("useListenerSync received update:", update.trackName, update.isPlaying);
+      setHostState(update);
+      setSyncStatus("synced");
+      setLastSyncTime(Date.now());
+      setError(null);
+      onSync?.(update);
+    };
 
     socket.on(SOCKET_EVENTS.HOST_UPDATE, handleHostUpdate);
     socket.on(SOCKET_EVENTS.SYNC_RESPONSE, handleHostUpdate);
 
-    // When connected, request current state
-    if (socket.connected) {
-      setSyncStatus("syncing");
-      requestSync(socket);
-    }
-
     socket.on("connect", () => {
+      console.log("useListenerSync: Socket connected, requesting initial sync");
+      hasRequestedInitialSync.current = false; // Reset on reconnect
       setSyncStatus("syncing");
       requestSync(socket);
     });
@@ -148,33 +68,21 @@ export function useListenerSync({
       setSyncStatus("disconnected");
     });
 
+    // Request initial sync when socket is already connected
+    if (socket.connected && !hasRequestedInitialSync.current) {
+      hasRequestedInitialSync.current = true;
+      console.log("useListenerSync: Requesting initial sync");
+      setSyncStatus("syncing");
+      requestSync(socket);
+    }
+
     return () => {
       socket.off(SOCKET_EVENTS.HOST_UPDATE, handleHostUpdate);
       socket.off(SOCKET_EVENTS.SYNC_RESPONSE, handleHostUpdate);
       socket.off("connect");
       socket.off("disconnect");
     };
-  }, [socket, isListener, handleHostUpdate]);
-
-  // Periodic sync check to handle drift
-  useEffect(() => {
-    if (!isListener || !hostState || syncStatus !== "synced") return;
-
-    const checkDrift = setInterval(() => {
-      if (hostState.isPlaying && hostState.trackUri) {
-        const expectedPosition =
-          hostState.progressMs + (Date.now() - hostState.timestamp);
-
-        // If we've drifted too far, request a new sync
-        if (expectedPosition - hostState.progressMs > SYNC_THRESHOLD_MS * 2) {
-          console.log("Drift detected, requesting sync");
-          manualSync();
-        }
-      }
-    }, 10000); // Check every 10 seconds
-
-    return () => clearInterval(checkDrift);
-  }, [isListener, hostState, syncStatus, manualSync]);
+  }, [socket, onSync]);
 
   return {
     hostState,

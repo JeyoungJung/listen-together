@@ -5,9 +5,25 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
+    console.log("Creating new socket connection...");
     socket = io({
       path: "/api/socketio",
       addTrailingSlash: false,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on("connect", () => {
+      console.log("Socket.io connected with id:", socket?.id);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Socket.io connection error:", error.message);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket.io disconnected:", reason);
     });
   }
   return socket;
@@ -29,40 +45,8 @@ export const SOCKET_EVENTS = {
   SYNC_RESPONSE: "sync_response",
 } as const;
 
-// Host emits playback state updates
-export function emitHostUpdate(socket: Socket, update: HostUpdate): void {
-  socket.emit(SOCKET_EVENTS.HOST_UPDATE, update);
-}
-
 // Listener requests current state from host
 export function requestSync(socket: Socket): void {
+  console.log("Requesting sync from server...");
   socket.emit(SOCKET_EVENTS.REQUEST_SYNC);
-}
-
-// Subscribe to host updates
-export function onHostUpdate(
-  socket: Socket,
-  callback: (update: HostUpdate) => void
-): void {
-  socket.on(SOCKET_EVENTS.HOST_UPDATE, callback);
-}
-
-// Subscribe to sync responses
-export function onSyncResponse(
-  socket: Socket,
-  callback: (update: HostUpdate) => void
-): void {
-  socket.on(SOCKET_EVENTS.SYNC_RESPONSE, callback);
-}
-
-// Clean up listeners
-export function removeHostUpdateListener(
-  socket: Socket,
-  callback?: (update: HostUpdate) => void
-): void {
-  if (callback) {
-    socket.off(SOCKET_EVENTS.HOST_UPDATE, callback);
-  } else {
-    socket.off(SOCKET_EVENTS.HOST_UPDATE);
-  }
 }

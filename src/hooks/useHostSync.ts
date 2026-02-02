@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { HostUpdate } from "@/types/spotify";
-import { emitHostUpdate, SOCKET_EVENTS } from "@/lib/socket";
+import { SOCKET_EVENTS } from "@/lib/socket";
 
 interface CurrentlyPlayingResponse {
   playing: boolean;
@@ -22,7 +22,7 @@ interface CurrentlyPlayingResponse {
 interface UseHostSyncOptions {
   socket: Socket | null;
   isHost: boolean;
-  pollInterval?: number; // in milliseconds
+  pollInterval?: number; // in milliseconds (default 3000)
 }
 
 interface UseHostSyncReturn {
@@ -36,7 +36,7 @@ interface UseHostSyncReturn {
 export function useHostSync({
   socket,
   isHost,
-  pollInterval = 5000,
+  pollInterval = 3000,
 }: UseHostSyncOptions): UseHostSyncReturn {
   const [currentState, setCurrentState] = useState<HostUpdate | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -47,6 +47,7 @@ export function useHostSync({
 
   const fetchCurrentlyPlaying = useCallback(async () => {
     try {
+      console.log("Host: Fetching current playback...");
       const response = await fetch("/api/spotify/currently-playing");
       
       if (!response.ok) {
@@ -54,6 +55,7 @@ export function useHostSync({
       }
 
       const data: CurrentlyPlayingResponse = await response.json();
+      console.log("Host: Playback data:", data);
 
       const update: HostUpdate = {
         trackUri: data.track?.uri || null,
@@ -70,17 +72,12 @@ export function useHostSync({
       setCurrentState(update);
       setError(null);
 
-      // Check if the state has changed significantly
-      const trackChanged = lastTrackUriRef.current !== update.trackUri;
-      const playStateChanged = lastIsPlayingRef.current !== update.isPlaying;
-
-      // Emit to socket if connected and state changed
-      if (socket && socket.connected && (trackChanged || playStateChanged)) {
-        console.log("Host emitting update:", update.trackName, update.isPlaying);
-        emitHostUpdate(socket, update);
-        lastTrackUriRef.current = update.trackUri;
-        lastIsPlayingRef.current = update.isPlaying;
-      }
+      // Update refs for tracking changes
+      lastTrackUriRef.current = update.trackUri;
+      lastIsPlayingRef.current = update.isPlaying;
+      
+      // Note: Server-side polling handles broadcasting to listeners
+      // Host client just displays their own state
 
       return update;
     } catch (err) {
@@ -94,6 +91,7 @@ export function useHostSync({
   const startPolling = useCallback(() => {
     if (!isHost || intervalRef.current) return;
 
+    console.log("Host: Starting playback polling...");
     setIsPolling(true);
     
     // Fetch immediately
@@ -135,16 +133,16 @@ export function useHostSync({
     };
   }, [socket, isHost, currentState]);
 
-  // Auto-start polling when host connects
+  // Auto-start polling when host is authenticated (socket connection optional)
   useEffect(() => {
-    if (isHost && socket?.connected) {
+    if (isHost) {
       startPolling();
     }
 
     return () => {
       stopPolling();
     };
-  }, [isHost, socket?.connected, startPolling, stopPolling]);
+  }, [isHost, startPolling, stopPolling]);
 
   return {
     currentState,

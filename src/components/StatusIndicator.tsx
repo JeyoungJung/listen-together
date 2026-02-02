@@ -29,15 +29,15 @@ export function StatusIndicator({ status, isHost, error }: StatusIndicatorProps)
         return {
           color: "bg-yellow-500",
           pulseColor: "bg-yellow-400",
-          text: "Syncing with Host...",
-          description: "Synchronizing your playback",
+          text: "Connecting...",
+          description: "Connecting to host",
         };
       case "synced":
         return {
           color: "bg-green-500",
           pulseColor: "bg-green-400",
           text: "Live",
-          description: "Listening along with the host",
+          description: "Viewing host's playback",
         };
       case "error":
         return {

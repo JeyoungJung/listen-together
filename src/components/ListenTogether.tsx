@@ -22,26 +22,29 @@ export function ListenTogether() {
   const isHost = session?.user?.isHost ?? false;
   const isListener = !!session && !isHost;
 
-  // Initialize socket connection
+  // Initialize socket connection (for all users, not just authenticated)
   useEffect(() => {
-    if (status === "authenticated" && session?.accessToken) {
-      const socketInstance = getSocket();
+    const socketInstance = getSocket();
+    
+    socketInstance.on("connect", () => {
+      console.log("Socket connected:", socketInstance.id);
+      setSocket(socketInstance); // Only set socket after connected
+    });
+
+    socketInstance.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    // Set immediately if already connected
+    if (socketInstance.connected) {
       setSocket(socketInstance);
-
-      socketInstance.on("connect", () => {
-        console.log("Socket connected");
-      });
-
-      socketInstance.on("disconnect", () => {
-        console.log("Socket disconnected");
-      });
-
-      return () => {
-        disconnectSocket();
-        setSocket(null);
-      };
     }
-  }, [status, session?.accessToken]);
+
+    return () => {
+      // Don't disconnect on cleanup - keep socket alive
+      // disconnectSocket();
+    };
+  }, []);
 
   // Spotify Player (for listeners)
   const {
@@ -72,6 +75,7 @@ export function ListenTogether() {
   });
 
   // Determine which state to display
+  // Host sees their own state, everyone else sees the listener state from socket
   const displayState: HostUpdate | null = isHost ? hostState : listenerHostState;
 
   // Handle manual sync for listeners
@@ -216,9 +220,9 @@ export function ListenTogether() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <RoleBadge isHost={isHost} />
             <StatusIndicator
-              status={isHost ? "broadcasting" : syncStatus}
+              status={isHost ? "broadcasting" : (listenerHostState ? "synced" : syncStatus)}
               isHost={isHost}
-              error={syncError || playerError}
+              error={syncError}
             />
           </div>
 
@@ -228,37 +232,40 @@ export function ListenTogether() {
           {/* Listener Controls */}
           {isListener && (
             <div className="flex flex-col items-center gap-4">
-              {/* Sync Button */}
-              <SyncButton
-                onSync={handleSync}
-                disabled={!playerReady || !socket?.connected}
-                isLoading={syncStatus === "syncing"}
-              />
-
-              {/* Player Status */}
-              {!playerReady && (
-                <div className="flex items-center gap-2 text-amber-500 text-sm">
-                  <svg
-                    className="w-4 h-4 animate-pulse"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <span>Initializing Spotify player...</span>
+              {playerReady ? (
+                <>
+                  {/* Sync Button - only for Premium users */}
+                  <SyncButton
+                    onSync={handleSync}
+                    disabled={!socket?.connected}
+                    isLoading={syncStatus === "syncing"}
+                  />
+                  <p className="text-zinc-500 text-sm text-center">
+                    Player ready! Your playback will sync with the host.
+                  </p>
+                </>
+              ) : (
+                <div className="text-center space-y-3">
+                  <div className="flex items-center justify-center gap-2 text-amber-500 text-sm">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Spotify Premium required for sync</span>
+                  </div>
+                  <p className="text-zinc-500 text-sm">
+                    You can see what the host is playing, but syncing your own playback requires Spotify Premium.
+                  </p>
                 </div>
-              )}
-
-              {playerReady && (
-                <p className="text-zinc-500 text-sm text-center">
-                  Player ready! Your playback will sync with the host.
-                </p>
               )}
 
               {playerError && (

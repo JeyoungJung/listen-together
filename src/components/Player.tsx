@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { HostUpdate } from "@/types/spotify";
 import Image from "next/image";
 
@@ -16,6 +17,36 @@ function formatTime(ms: number): string {
 }
 
 export function Player({ state, isHost }: PlayerProps) {
+  // Interpolate progress for smooth updates
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  useEffect(() => {
+    if (!state || !state.trackUri) {
+      setDisplayProgress(0);
+      return;
+    }
+
+    // Calculate initial progress based on time since last update
+    const timeSinceUpdate = Date.now() - state.timestamp;
+    const currentProgress = state.isPlaying
+      ? Math.min(state.progressMs + timeSinceUpdate, state.durationMs)
+      : state.progressMs;
+    
+    setDisplayProgress(currentProgress);
+
+    // If playing, update progress every 100ms for smooth animation
+    if (state.isPlaying) {
+      const interval = setInterval(() => {
+        setDisplayProgress((prev) => {
+          const newProgress = prev + 100;
+          return Math.min(newProgress, state.durationMs);
+        });
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [state]);
+
   if (!state || !state.trackUri) {
     return (
       <div className="w-full max-w-md mx-auto">
@@ -52,7 +83,7 @@ export function Player({ state, isHost }: PlayerProps) {
     );
   }
 
-  const progress = state.durationMs > 0 ? (state.progressMs / state.durationMs) * 100 : 0;
+  const progressPercent = state.durationMs > 0 ? (displayProgress / state.durationMs) * 100 : 0;
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -108,12 +139,12 @@ export function Player({ state, isHost }: PlayerProps) {
         <div className="space-y-2">
           <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-green-500 rounded-full transition-all duration-1000 ease-linear"
-              style={{ width: `${progress}%` }}
+              className="h-full bg-green-500 rounded-full transition-none"
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-zinc-500">
-            <span>{formatTime(state.progressMs)}</span>
+            <span>{formatTime(displayProgress)}</span>
             <span>{formatTime(state.durationMs)}</span>
           </div>
         </div>
