@@ -29,7 +29,8 @@ export function Vinyl({ albumArtUrl, isPlaying }: VinylProps) {
     loader.load(
       albumArtUrl,
       (texture) => {
-        texture.encoding = THREE.sRGBEncoding;
+        // Use colorSpace for newer three.js (encoding is deprecated)
+        (texture as unknown as { colorSpace: string }).colorSpace = "srgb";
         texture.needsUpdate = true;
         setAlbumTexture(texture);
       },
@@ -78,7 +79,7 @@ export function Vinyl({ albumArtUrl, isPlaying }: VinylProps) {
     ctx.fillRect(0, 0, 512, 512);
     
     const texture = new THREE.CanvasTexture(canvas);
-    texture.encoding = THREE.sRGBEncoding;
+    (texture as unknown as { colorSpace: string }).colorSpace = "srgb";
     return texture;
   }, []);
 
@@ -108,7 +109,7 @@ export function Vinyl({ albumArtUrl, isPlaying }: VinylProps) {
     ctx.fillText("♪", 128, 128);
     
     const texture = new THREE.CanvasTexture(canvas);
-    texture.encoding = THREE.sRGBEncoding;
+    (texture as unknown as { colorSpace: string }).colorSpace = "srgb";
     return texture;
   }, []);
 
