@@ -10,6 +10,7 @@ import { useListenerSync } from "@/hooks/useListenerSync";
 import { getSocket } from "@/lib/socket";
 import { HostUpdate } from "@/types/spotify";
 import { HUD } from "./three/HUD";
+import { YouTubePlayer } from "./YouTubePlayer";
 
 // Dynamically import the 3D Experience to avoid SSR issues
 const Experience = dynamic(
@@ -47,6 +48,7 @@ export function ListenTogether3D() {
   const [appleMusicLoading, setAppleMusicLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
+  const [youtubeEnabled, setYoutubeEnabled] = useState(false);
   const lastPrefetchedTrack = useRef<string | null>(null);
   const lastFeaturesTrack = useRef<string | null>(null);
   
@@ -243,6 +245,15 @@ export function ListenTogether3D() {
         isSyncEnabled={isSyncEnabled}
         onSyncToggle={setSyncEnabled}
       />
+
+      {/* YouTube Player for guests */}
+      {isGuestListener && displayState?.trackName && (
+        <YouTubePlayer
+          hostState={displayState}
+          isEnabled={youtubeEnabled}
+          onToggle={setYoutubeEnabled}
+        />
+      )}
     </div>
   );
 }
