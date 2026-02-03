@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { HostUpdate } from "@/types/spotify";
 
 interface YouTubePlayerProps {
@@ -17,6 +17,14 @@ const SYNC_COOLDOWN = 15000;
 
 // YouTube Player State constants
 const YT_PLAYING = 1;
+
+// Cache for video search results - persists across component re-renders
+const videoIdCache = new Map<string, string>();
+
+// Get cache key from track info
+function getCacheKey(trackName: string, artistName: string): string {
+  return `${trackName.toLowerCase()}-${artistName.toLowerCase()}`;
+}
 
 interface YTPlayer {
   playVideo: () => void;
@@ -69,6 +77,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMutedState] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
   
   // Register setter globally for external control
   const setIsMuted = (muted: boolean) => {
@@ -76,13 +85,14 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
   };
   globalRefs.setIsMuted = setIsMuted;
   
-  const lastSearchedTrack = useRef<string | null>(null);
+  const lastLoadedVideoRef = useRef<string | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timeUpdateRef = useRef<NodeJS.Timeout | null>(null);
   const apiLoadedRef = useRef(false);
   const lastSyncTimeRef = useRef<number>(0);
   const initialSyncDoneRef = useRef(false);
+  const pendingVideoRef = useRef<{ videoId: string; startSeconds: number; shouldPlay: boolean } | null>(null);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -119,19 +129,74 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     loadAPI();
   }, [isEnabled]);
 
+  // Function to load video (either via loadVideoById or initial player creation)
+  const loadVideo = useCallback((newVideoId: string, startSeconds: number, shouldPlay: boolean) => {
+    // Always update state so sync logic sees the change
+    setVideoId(newVideoId);
+    
+    // If player exists and is ready, use loadVideoById for faster loading
+    if (playerRef.current && isPlayerReady) {
+      try {
+        // loadVideoById auto-plays by default, which is what we want
+        playerRef.current.loadVideoById(newVideoId, startSeconds);
+        lastLoadedVideoRef.current = newVideoId;
+        initialSyncDoneRef.current = false;
+        
+        // Ensure playback starts - call playVideo after a brief delay to let video load
+        if (shouldPlay) {
+          setTimeout(() => {
+            try {
+              playerRef.current?.playVideo();
+            } catch {
+              // Ignore
+            }
+          }, 300);
+        } else {
+          // Host is paused, pause after video loads
+          setTimeout(() => {
+            try {
+              playerRef.current?.pauseVideo();
+            } catch {
+              // Ignore
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.error("Error loading video:", err);
+      }
+    } else {
+      // Player not ready yet, queue it up
+      pendingVideoRef.current = { videoId: newVideoId, startSeconds, shouldPlay };
+    }
+  }, [isPlayerReady]);
+
   // Search for YouTube video when track changes
   useEffect(() => {
     if (!isEnabled || !hostState?.trackName || !hostState?.artistName) {
       return;
     }
 
-    const trackKey = `${hostState.trackName}-${hostState.artistName}`;
-    if (trackKey === lastSearchedTrack.current) {
+    const cacheKey = getCacheKey(hostState.trackName, hostState.artistName);
+    
+    // Check if we already have this video loaded
+    if (lastLoadedVideoRef.current && videoIdCache.get(cacheKey) === lastLoadedVideoRef.current) {
       return;
     }
 
+    const startSeconds = (hostState.progressMs || 0) / 1000;
+    const shouldPlay = hostState.isPlaying || false;
+
+    // Check cache first - instant load!
+    const cachedVideoId = videoIdCache.get(cacheKey);
+    if (cachedVideoId) {
+      loadVideo(cachedVideoId, startSeconds, shouldPlay);
+      return;
+    }
+
+    // Not in cache, need to search
     async function searchVideo() {
       setSearchError(null);
+      setIsSearching(true);
 
       try {
         const params = new URLSearchParams({
@@ -143,19 +208,11 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
         const data = await response.json();
 
         if (data.videoId) {
-          // Destroy existing player before setting new video
-          if (playerRef.current) {
-            try {
-              playerRef.current.destroy();
-            } catch {
-              // Ignore
-            }
-            playerRef.current = null;
-          }
-          setIsPlayerReady(false);
-          setVideoId(data.videoId);
-          lastSearchedTrack.current = trackKey;
-          initialSyncDoneRef.current = false; // Reset for new track
+          // Cache the result
+          videoIdCache.set(cacheKey, data.videoId);
+          
+          // Load the video
+          loadVideo(data.videoId, startSeconds, shouldPlay);
         } else {
           setSearchError(data.error || "Video not found");
           setVideoId(null);
@@ -163,30 +220,19 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       } catch (error) {
         console.error("Error searching YouTube:", error);
         setSearchError("Failed to search YouTube");
+      } finally {
+        setIsSearching(false);
       }
     }
 
     searchVideo();
-  }, [isEnabled, hostState?.trackName, hostState?.artistName]);
+  }, [isEnabled, hostState?.trackName, hostState?.artistName, hostState?.progressMs, hostState?.isPlaying, loadVideo]);
 
-  // Store initial host state for player creation (don't re-run on every update)
-  const initialHostStateRef = useRef<{ progressMs: number; isPlaying: boolean } | null>(null);
-  
-  // Capture initial state when video changes
+  // Initialize YouTube player once (reuse for all videos)
   useEffect(() => {
-    if (videoId && hostState) {
-      initialHostStateRef.current = {
-        progressMs: hostState.progressMs || 0,
-        isPlaying: hostState.isPlaying || false,
-      };
-    }
-  }, [videoId]); // Only when videoId changes, not hostState
-
-  // Initialize YouTube player when videoId changes (only once per video)
-  useEffect(() => {
-    if (!isEnabled || !videoId || !containerRef.current) return;
-
-    // Don't re-create if player already exists for this video
+    if (!isEnabled || !containerRef.current) return;
+    
+    // Only create player once
     if (playerRef.current) return;
 
     // Wait for API to load
@@ -198,17 +244,18 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     }, 100);
 
     function initPlayer() {
-      // Get initial position from stored ref
-      const initialState = initialHostStateRef.current;
-      const startSeconds = initialState?.progressMs ? initialState.progressMs / 1000 : 0;
+      const pending = pendingVideoRef.current;
+      const initialVideoId = pending?.videoId || videoId;
+      const startSeconds = pending?.startSeconds || 0;
+      const shouldPlay = pending?.shouldPlay ?? true;
       
       try {
         playerRef.current = new window.YT.Player("youtube-player-iframe", {
           height: "100%",
           width: "100%",
-          videoId: videoId || undefined,
+          videoId: initialVideoId || undefined,
           playerVars: {
-            autoplay: initialState?.isPlaying ? 1 : 0,
+            autoplay: shouldPlay ? 1 : 0,
             controls: 1,
             disablekb: 0,
             fs: 1,
@@ -221,11 +268,23 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
           events: {
             onReady: (event) => {
               setIsPlayerReady(true);
+              lastLoadedVideoRef.current = initialVideoId;
               // Store globally for external control
               (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef = event.target;
-              if (initialState?.isPlaying) {
+              
+              // If there's a pending video that's different, load it now
+              if (pendingVideoRef.current && pendingVideoRef.current.videoId !== initialVideoId) {
+                const { videoId: pendingId, startSeconds: pendingStart, shouldPlay: pendingPlay } = pendingVideoRef.current;
+                event.target.loadVideoById(pendingId, pendingStart);
+                lastLoadedVideoRef.current = pendingId;
+                if (pendingPlay) {
+                  event.target.playVideo();
+                }
+              } else if (shouldPlay) {
                 event.target.playVideo();
               }
+              
+              pendingVideoRef.current = null;
             },
             onStateChange: (event) => {
               setIsPlaying(event.data === YT_PLAYING);
@@ -245,7 +304,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     return () => {
       clearInterval(waitForAPI);
     };
-  }, [isEnabled, videoId]); // Only depends on isEnabled and videoId, NOT hostState
+  }, [isEnabled, videoId]);
 
   // Time update interval
   useEffect(() => {
