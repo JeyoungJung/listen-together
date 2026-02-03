@@ -1,13 +1,16 @@
 # Use Node.js 20 Alpine
 FROM node:20-alpine
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package.json package-lock.json* .npmrc ./
+# Copy package files (including fresh package-lock.json)
+COPY package.json package-lock.json .npmrc ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm install --legacy-peer-deps
+# Install dependencies with ci for reproducible builds
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -15,9 +18,6 @@ COPY . .
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
-
-# Remove devDependencies after build
-RUN npm prune --production --legacy-peer-deps
 
 # Set production environment
 ENV NODE_ENV=production
