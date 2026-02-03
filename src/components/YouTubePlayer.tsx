@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useYouTubePlayer } from "@/hooks/useYouTubePlayer";
 import { HostUpdate } from "@/types/spotify";
 
 interface YouTubePlayerProps {
@@ -14,6 +13,53 @@ interface YouTubePlayerProps {
 // Sync tolerance in seconds
 const SYNC_TOLERANCE = 5;
 
+// YouTube Player State constants
+const YT_PLAYING = 1;
+
+interface YTPlayer {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  getPlayerState: () => number;
+  loadVideoById: (videoId: string, startSeconds?: number) => void;
+  destroy: () => void;
+  mute: () => void;
+  unMute: () => void;
+  isMuted: () => boolean;
+}
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (
+        elementId: string,
+        config: {
+          height?: string | number;
+          width?: string | number;
+          videoId?: string;
+          playerVars?: Record<string, unknown>;
+          events?: {
+            onReady?: (event: { target: YTPlayer }) => void;
+            onStateChange?: (event: { data: number; target: YTPlayer }) => void;
+            onError?: (event: { data: number }) => void;
+          };
+        }
+      ) => YTPlayer;
+      PlayerState: {
+        UNSTARTED: -1;
+        ENDED: 0;
+        PLAYING: 1;
+        PAUSED: 2;
+        BUFFERING: 3;
+        CUED: 5;
+      };
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
 export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerProps) {
   const [videoId, setVideoId] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string | null>(null);
@@ -21,32 +67,52 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showSyncStatus, setShowSyncStatus] = useState(false);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  
   const lastSearchedTrack = useRef<string | null>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timeUpdateRef = useRef<NodeJS.Timeout | null>(null);
+  const apiLoadedRef = useRef(false);
 
-  const {
-    isReady,
-    isPlaying,
-    currentTime,
-    loadVideo,
-    play,
-    pause,
-    seekTo,
-    toggleMute,
-    isMuted,
-  } = useYouTubePlayer({
-    containerId: "youtube-player-container",
-    onReady: () => {
-      console.log("YouTube player ready");
-    },
-    onStateChange: (state) => {
-      console.log("YouTube player state:", state);
-    },
-    onError: (error) => {
-      console.error("YouTube player error:", error);
-      setSearchError("Video playback error");
-    },
-  });
+  // Load YouTube IFrame API
+  useEffect(() => {
+    if (!isEnabled || apiLoadedRef.current) return;
+
+    const loadAPI = () => {
+      if (window.YT && window.YT.Player) {
+        apiLoadedRef.current = true;
+        return;
+      }
+
+      const existingScript = document.querySelector('script[src*="youtube.com/iframe_api"]');
+      if (existingScript) {
+        const checkYT = setInterval(() => {
+          if (window.YT && window.YT.Player) {
+            clearInterval(checkYT);
+            apiLoadedRef.current = true;
+          }
+        }, 100);
+        return;
+      }
+
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      
+      window.onYouTubeIframeAPIReady = () => {
+        apiLoadedRef.current = true;
+      };
+
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    };
+
+    loadAPI();
+  }, [isEnabled]);
 
   // Search for YouTube video when track changes
   useEffect(() => {
@@ -76,12 +142,6 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
           setVideoId(data.videoId);
           setVideoTitle(data.title);
           lastSearchedTrack.current = trackKey;
-          
-          // Load and start playing at the correct position
-          if (isReady) {
-            const startSeconds = (hostState!.progressMs || 0) / 1000;
-            loadVideo(data.videoId, startSeconds);
-          }
         } else {
           setSearchError(data.error || "Video not found");
           setVideoId(null);
@@ -95,62 +155,182 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
     }
 
     searchVideo();
-  }, [isEnabled, hostState?.trackName, hostState?.artistName, hostState?.progressMs, isReady, loadVideo]);
+  }, [isEnabled, hostState?.trackName, hostState?.artistName]);
+
+  // Initialize/update YouTube player when videoId changes
+  useEffect(() => {
+    if (!isEnabled || !videoId || !containerRef.current) return;
+
+    // Wait for API to load
+    const waitForAPI = setInterval(() => {
+      if (window.YT && window.YT.Player) {
+        clearInterval(waitForAPI);
+        initPlayer();
+      }
+    }, 100);
+
+    function initPlayer() {
+      // Destroy existing player
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // Ignore
+        }
+        playerRef.current = null;
+      }
+
+      // Create new player
+      const startSeconds = hostState?.progressMs ? hostState.progressMs / 1000 : 0;
+      
+      try {
+        playerRef.current = new window.YT.Player("youtube-player-iframe", {
+          height: "100%",
+          width: "100%",
+          videoId: videoId,
+          playerVars: {
+            autoplay: hostState?.isPlaying ? 1 : 0,
+            controls: 1,
+            disablekb: 0,
+            fs: 1,
+            modestbranding: 1,
+            rel: 0,
+            iv_load_policy: 3,
+            playsinline: 1,
+            start: Math.floor(startSeconds),
+          },
+          events: {
+            onReady: (event) => {
+              setIsPlayerReady(true);
+              if (hostState?.isPlaying) {
+                event.target.playVideo();
+              }
+            },
+            onStateChange: (event) => {
+              setIsPlaying(event.data === YT_PLAYING);
+            },
+            onError: (event) => {
+              console.error("YouTube player error:", event.data);
+              setSearchError("Video playback error");
+            },
+          },
+        });
+      } catch (err) {
+        console.error("Error creating YouTube player:", err);
+        setSearchError("Failed to create player");
+      }
+    }
+
+    return () => {
+      clearInterval(waitForAPI);
+    };
+  }, [isEnabled, videoId, hostState?.progressMs, hostState?.isPlaying]);
+
+  // Time update interval
+  useEffect(() => {
+    if (isPlaying && playerRef.current) {
+      timeUpdateRef.current = setInterval(() => {
+        try {
+          if (playerRef.current) {
+            setCurrentTime(playerRef.current.getCurrentTime());
+          }
+        } catch {
+          // Player might be destroyed
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (timeUpdateRef.current) {
+        clearInterval(timeUpdateRef.current);
+      }
+    };
+  }, [isPlaying]);
 
   // Sync playback with host
   useEffect(() => {
-    if (!isEnabled || !isReady || !videoId || !hostState) {
+    if (!isEnabled || !isPlayerReady || !videoId || !hostState || !playerRef.current) {
       return;
     }
 
-    // Sync play/pause state
-    if (hostState.isPlaying && !isPlaying) {
-      play();
-    } else if (!hostState.isPlaying && isPlaying) {
-      pause();
+    try {
+      // Sync play/pause state
+      if (hostState.isPlaying && !isPlaying) {
+        playerRef.current.playVideo();
+      } else if (!hostState.isPlaying && isPlaying) {
+        playerRef.current.pauseVideo();
+      }
+
+      // Sync position (with tolerance)
+      const hostPositionSec = (hostState.progressMs || 0) / 1000;
+      const drift = Math.abs(currentTime - hostPositionSec);
+
+      if (drift > SYNC_TOLERANCE && hostState.isPlaying) {
+        playerRef.current.seekTo(hostPositionSec, true);
+        setShowSyncStatus(true);
+        
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+        }
+        syncTimeoutRef.current = setTimeout(() => {
+          setShowSyncStatus(false);
+        }, 2000);
+      }
+    } catch {
+      // Player might not be ready
     }
+  }, [isEnabled, isPlayerReady, videoId, hostState, isPlaying, currentTime]);
 
-    // Sync position (with tolerance)
-    const hostPositionSec = (hostState.progressMs || 0) / 1000;
-    const drift = Math.abs(currentTime - hostPositionSec);
-
-    if (drift > SYNC_TOLERANCE && hostState.isPlaying) {
-      seekTo(hostPositionSec);
-      setShowSyncStatus(true);
-      
-      // Hide sync status after 2 seconds
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // Ignore
+        }
+      }
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
-      syncTimeoutRef.current = setTimeout(() => {
-        setShowSyncStatus(false);
-      }, 2000);
-    }
-  }, [isEnabled, isReady, videoId, hostState, isPlaying, currentTime, play, pause, seekTo]);
-
-  // Load video when player becomes ready
-  useEffect(() => {
-    if (isReady && videoId && hostState) {
-      const startSeconds = (hostState.progressMs || 0) / 1000;
-      loadVideo(videoId, startSeconds);
-      if (hostState.isPlaying) {
-        // Small delay to ensure video is loaded
-        setTimeout(() => play(), 500);
+      if (timeUpdateRef.current) {
+        clearInterval(timeUpdateRef.current);
       }
-    }
-  }, [isReady, videoId, hostState, loadVideo, play]);
+    };
+  }, []);
 
   const handleManualSync = useCallback(() => {
-    if (hostState && isReady) {
-      const hostPositionSec = (hostState.progressMs || 0) / 1000;
-      seekTo(hostPositionSec);
-      if (hostState.isPlaying) {
-        play();
+    if (hostState && playerRef.current) {
+      try {
+        const hostPositionSec = (hostState.progressMs || 0) / 1000;
+        playerRef.current.seekTo(hostPositionSec, true);
+        if (hostState.isPlaying) {
+          playerRef.current.playVideo();
+        }
+        setShowSyncStatus(true);
+        setTimeout(() => setShowSyncStatus(false), 2000);
+      } catch {
+        // Player might not be ready
       }
-      setShowSyncStatus(true);
-      setTimeout(() => setShowSyncStatus(false), 2000);
     }
-  }, [hostState, isReady, seekTo, play]);
+  }, [hostState]);
+
+  const handleToggleMute = useCallback(() => {
+    if (playerRef.current) {
+      try {
+        if (playerRef.current.isMuted()) {
+          playerRef.current.unMute();
+          setIsMuted(false);
+        } else {
+          playerRef.current.mute();
+          setIsMuted(true);
+        }
+      } catch {
+        // Player might not be ready
+      }
+    }
+  }, []);
 
   if (!isEnabled) {
     return (
@@ -209,7 +389,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
             
             {/* Mute button */}
             <button
-              onClick={toggleMute}
+              onClick={handleToggleMute}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
               title={isMuted ? "Unmute" : "Mute"}
             >
@@ -298,11 +478,11 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
         )}
 
         {/* YouTube player container */}
-        <div 
-          id="youtube-player-container" 
-          className="w-full h-full"
-          style={{ pointerEvents: isSearching || searchError ? "none" : "auto" }}
-        />
+        <div ref={containerRef} className="w-full h-full">
+          {videoId && !searchError && (
+            <div id="youtube-player-iframe" className="w-full h-full" />
+          )}
+        </div>
       </div>
     </motion.div>
   );
