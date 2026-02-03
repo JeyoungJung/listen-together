@@ -16,6 +16,7 @@ interface HUDProps {
   onJoinAsGuest: () => void;
   onOpenAppleMusic: (trackUri: string) => void;
   appleMusicLoading: boolean;
+  listenerCount: number;
 }
 
 function formatTime(ms: number): string {
@@ -301,11 +302,12 @@ function NowPlayingBar({
 }
 
 // Header with user info
-function Header({ session, isHost, isGuest, onBack }: { 
+function Header({ session, isHost, isGuest, onBack, listenerCount }: { 
   session: Session | null; 
   isHost: boolean; 
   isGuest: boolean;
   onBack?: () => void;
+  listenerCount: number;
 }) {
   return (
     <GlassCard className="px-4 py-3">
@@ -333,6 +335,16 @@ function Header({ session, isHost, isGuest, onBack }: {
           }`}>
             {isHost ? "Host" : isGuest ? "Guest" : "Listener"}
           </span>
+
+          {/* Listener count */}
+          {listenerCount > 0 && (
+            <span className="px-2 py-1 rounded-full text-xs font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30 flex items-center gap-1.5">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              {listenerCount} {listenerCount === 1 ? 'listener' : 'listeners'}
+            </span>
+          )}
         </div>
 
         {/* User info or back button */}
@@ -382,6 +394,7 @@ export function HUD({
   onJoinAsGuest,
   onOpenAppleMusic,
   appleMusicLoading,
+  listenerCount,
 }: HUDProps) {
   // Show landing page for unauthenticated non-guests
   if (!session && !isGuest) {
@@ -397,6 +410,7 @@ export function HUD({
           isHost={isHost} 
           isGuest={isGuest} 
           onBack={isGuest ? () => window.location.reload() : undefined}
+          listenerCount={listenerCount}
         />
       </div>
 

@@ -109,13 +109,22 @@ app.prepare().then(() => {
     pollInterval = setInterval(pollHostPlayback, POLL_INTERVAL);
   }, 3000);
 
+  // Broadcast listener count to all clients
+  function broadcastListenerCount() {
+    const count = io.engine.clientsCount;
+    io.emit("listener_count", { count });
+  }
+
   io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    console.log("Client connected:", socket.id, "- Total:", io.engine.clientsCount);
 
     // Send the latest host state to new listeners
     if (latestHostUpdate) {
       socket.emit("sync_response", latestHostUpdate);
     }
+
+    // Send current listener count to new client and broadcast to all
+    broadcastListenerCount();
 
     // Host can also broadcast directly (if they're on the page)
     socket.on("host_update", (update) => {
@@ -134,7 +143,9 @@ app.prepare().then(() => {
     });
 
     socket.on("disconnect", () => {
-      console.log("Client disconnected:", socket.id);
+      console.log("Client disconnected:", socket.id, "- Total:", io.engine.clientsCount - 1);
+      // Broadcast updated count after disconnect (slight delay to ensure count is updated)
+      setTimeout(broadcastListenerCount, 100);
     });
   });
 

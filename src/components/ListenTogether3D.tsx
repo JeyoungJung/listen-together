@@ -46,6 +46,7 @@ export function ListenTogether3D() {
   const [isGuest, setIsGuest] = useState(false);
   const [appleMusicLoading, setAppleMusicLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [listenerCount, setListenerCount] = useState(0);
   const lastPrefetchedTrack = useRef<string | null>(null);
   const lastFeaturesTrack = useRef<string | null>(null);
   
@@ -73,13 +74,18 @@ export function ListenTogether3D() {
       // Socket disconnected
     });
 
+    // Listen for listener count updates
+    socketInstance.on("listener_count", (data: { count: number }) => {
+      setListenerCount(data.count);
+    });
+
     // Set immediately if already connected
     if (socketInstance.connected) {
       setSocket(socketInstance);
     }
 
     return () => {
-      // Don't disconnect on cleanup - keep socket alive
+      socketInstance.off("listener_count");
     };
   }, []);
 
@@ -229,6 +235,7 @@ export function ListenTogether3D() {
         onJoinAsGuest={handleJoinAsGuest}
         onOpenAppleMusic={handleOpenAppleMusic}
         appleMusicLoading={appleMusicLoading}
+        listenerCount={listenerCount}
       />
     </div>
   );

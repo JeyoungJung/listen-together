@@ -29,6 +29,7 @@ export const SOCKET_EVENTS = {
   LISTENER_DISCONNECTED: "listener_disconnected",
   REQUEST_SYNC: "request_sync",
   SYNC_RESPONSE: "sync_response",
+  LISTENER_COUNT: "listener_count",
 } as const;
 
 // Listener requests current state from host
