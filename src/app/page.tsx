@@ -1,5 +1,5 @@
-import { ListenTogether } from "@/components/ListenTogether";
+import { ListenTogether3D } from "@/components/ListenTogether3D";
 
 export default function Home() {
-  return <ListenTogether />;
+  return <ListenTogether3D />;
 }

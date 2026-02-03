@@ -22,8 +22,6 @@ interface UseListenerSyncReturn {
 
 export function useListenerSync({
   socket,
-  isListener,
-  deviceId,
   onSync,
 }: UseListenerSyncOptions): UseListenerSyncReturn {
   const [hostState, setHostState] = useState<HostUpdate | null>(null);

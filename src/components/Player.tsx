@@ -7,6 +7,7 @@ import Image from "next/image";
 interface PlayerProps {
   state: HostUpdate | null;
   isHost: boolean;
+  isGuest?: boolean;
 }
 
 function formatTime(ms: number): string {
@@ -16,7 +17,7 @@ function formatTime(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-export function Player({ state, isHost }: PlayerProps) {
+export function Player({ state, isHost, isGuest = false }: PlayerProps) {
   // Interpolate progress for smooth updates
   const [displayProgress, setDisplayProgress] = useState(0);
 
@@ -74,6 +75,8 @@ export function Player({ state, isHost }: PlayerProps) {
               <p className="text-zinc-600 text-sm mt-2">
                 {isHost
                   ? "Your playback will be shared with listeners"
+                  : isGuest
+                  ? "The track info will appear when the host starts playing"
                   : "You'll sync automatically when the host starts playing"}
               </p>
             </div>
