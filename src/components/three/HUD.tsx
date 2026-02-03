@@ -17,6 +17,9 @@ interface HUDProps {
   onOpenAppleMusic: (trackUri: string) => void;
   appleMusicLoading: boolean;
   listenerCount: number;
+  isSyncEnabled?: boolean;
+  onSyncToggle?: (enabled: boolean) => void;
+  isPremiumListener?: boolean;
 }
 
 function formatTime(ms: number): string {
@@ -126,6 +129,9 @@ function NowPlayingBar({
   syncStatus,
   onOpenAppleMusic,
   appleMusicLoading,
+  isPremiumListener,
+  isSyncEnabled,
+  onSyncToggle,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -133,6 +139,9 @@ function NowPlayingBar({
   syncStatus: string;
   onOpenAppleMusic: (trackUri: string) => void;
   appleMusicLoading: boolean;
+  isPremiumListener?: boolean;
+  isSyncEnabled?: boolean;
+  onSyncToggle?: (enabled: boolean) => void;
 }) {
   const [showProgress] = useState(true);
 
@@ -242,8 +251,25 @@ function NowPlayingBar({
                 : "bg-yellow-400"
             } animate-pulse`} />
             <span className="text-white/50 text-sm">
-              {isHost ? "Broadcasting" : isGuest ? "Viewing as guest" : "Synced"}
+              {isHost ? "Broadcasting" : isGuest ? "Viewing as guest" : isPremiumListener && isSyncEnabled ? "Listening along" : "Synced"}
             </span>
+            
+            {/* Sync toggle for Premium listeners */}
+            {isPremiumListener && onSyncToggle && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => onSyncToggle(!isSyncEnabled)}
+                className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                  isSyncEnabled 
+                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" 
+                    : "bg-white/10 text-white/50 border border-white/20"
+                }`}
+                title={isSyncEnabled ? "Click to stop syncing playback" : "Click to sync playback with host"}
+              >
+                {isSyncEnabled ? "Sync On" : "Sync Off"}
+              </motion.button>
+            )}
           </div>
 
           {/* Music service buttons for guests */}
@@ -395,6 +421,9 @@ export function HUD({
   onOpenAppleMusic,
   appleMusicLoading,
   listenerCount,
+  isSyncEnabled,
+  onSyncToggle,
+  isPremiumListener,
 }: HUDProps) {
   // Show landing page for unauthenticated non-guests
   if (!session && !isGuest) {
@@ -424,6 +453,9 @@ export function HUD({
             syncStatus={syncStatus}
             onOpenAppleMusic={onOpenAppleMusic}
             appleMusicLoading={appleMusicLoading}
+            isPremiumListener={isPremiumListener}
+            isSyncEnabled={isSyncEnabled}
+            onSyncToggle={onSyncToggle}
           />
         </AnimatePresence>
       </div>

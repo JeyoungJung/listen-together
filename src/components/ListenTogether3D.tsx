@@ -108,10 +108,13 @@ export function ListenTogether3D() {
   const {
     hostState: listenerHostState,
     syncStatus,
+    isSyncEnabled,
+    setSyncEnabled,
   } = useListenerSync({
     socket,
     isListener: isListener || isGuestListener,
     deviceId,
+    accessToken: session?.accessToken,
   });
 
   // Determine which state to display
@@ -236,6 +239,9 @@ export function ListenTogether3D() {
         onOpenAppleMusic={handleOpenAppleMusic}
         appleMusicLoading={appleMusicLoading}
         listenerCount={listenerCount}
+        isPremiumListener={isListener && !!deviceId}
+        isSyncEnabled={isSyncEnabled}
+        onSyncToggle={setSyncEnabled}
       />
     </div>
   );
