@@ -187,7 +187,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
         playerRef.current = new window.YT.Player("youtube-player-iframe", {
           height: "100%",
           width: "100%",
-          videoId: videoId,
+          videoId: videoId || undefined,
           playerVars: {
             autoplay: hostState?.isPlaying ? 1 : 0,
             controls: 1,
