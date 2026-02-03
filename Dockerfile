@@ -6,18 +6,26 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy package files (including fresh package-lock.json)
+# Copy package files
 COPY package.json package-lock.json .npmrc ./
 
-# Install dependencies with ci for reproducible builds
-RUN npm ci --legacy-peer-deps
+# Cache bust - change this to force fresh install
+ARG CACHEBUST=1
+
+# Install dependencies and verify
+RUN echo "Installing dependencies..." && \
+    npm ci --legacy-peer-deps && \
+    echo "Verifying installation..." && \
+    ls -la node_modules/ | head -20 && \
+    ls -la node_modules/.bin/ | head -20 && \
+    test -f node_modules/.bin/next && echo "next binary found!" || (echo "ERROR: next not found!" && exit 1)
 
 # Copy source code
 COPY . .
 
-# Build Next.js
+# Build Next.js using npx to ensure we find it
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN npx next build
 
 # Set production environment
 ENV NODE_ENV=production
