@@ -10,7 +10,7 @@ import { useListenerSync } from "@/hooks/useListenerSync";
 import { getSocket } from "@/lib/socket";
 import { HostUpdate } from "@/types/spotify";
 import { HUD } from "./three/HUD";
-import { YouTubePlayer } from "./YouTubePlayer";
+import { YouTubePlayer, useYouTubeControls } from "./YouTubePlayer";
 
 // Dynamically import the 3D Experience to avoid SSR issues
 const Experience = dynamic(
@@ -49,6 +49,8 @@ export function ListenTogether3D() {
   const [isClient, setIsClient] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
   const [youtubeEnabled, setYoutubeEnabled] = useState(false);
+  const [youtubeStatus, setYoutubeStatus] = useState({ isPlaying: false, isMuted: false });
+  const youtubeControls = useYouTubeControls();
   const lastPrefetchedTrack = useRef<string | null>(null);
   const lastFeaturesTrack = useRef<string | null>(null);
   
@@ -246,14 +248,17 @@ export function ListenTogether3D() {
         onSyncToggle={setSyncEnabled}
         youtubeEnabled={youtubeEnabled}
         onYoutubeToggle={setYoutubeEnabled}
+        youtubeStatus={youtubeStatus}
+        onYoutubeMuteToggle={youtubeControls.toggleMute}
       />
 
-      {/* YouTube Player for guests */}
+      {/* YouTube Player for guests (hidden - audio only) */}
       {isGuestListener && displayState?.trackName && (
         <YouTubePlayer
           hostState={displayState}
           isEnabled={youtubeEnabled}
           onToggle={setYoutubeEnabled}
+          onStatusChange={setYoutubeStatus}
         />
       )}
     </div>

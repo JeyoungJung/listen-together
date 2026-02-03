@@ -22,6 +22,8 @@ interface HUDProps {
   isPremiumListener?: boolean;
   youtubeEnabled?: boolean;
   onYoutubeToggle?: (enabled: boolean) => void;
+  youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
+  onYoutubeMuteToggle?: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -136,6 +138,8 @@ function NowPlayingBar({
   onSyncToggle,
   youtubeEnabled,
   onYoutubeToggle,
+  youtubeStatus,
+  onYoutubeMuteToggle,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -148,6 +152,8 @@ function NowPlayingBar({
   onSyncToggle?: (enabled: boolean) => void;
   youtubeEnabled?: boolean;
   onYoutubeToggle?: (enabled: boolean) => void;
+  youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
+  onYoutubeMuteToggle?: () => void;
 }) {
   const [showProgress] = useState(true);
 
@@ -250,15 +256,68 @@ function NowPlayingBar({
         {/* Status and actions */}
         <div className="flex items-center justify-between pt-2">
           {/* Status badge */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className={`w-2 h-2 rounded-full ${
               syncStatus === "synced" || displayState.isPlaying 
                 ? "bg-green-400" 
                 : "bg-yellow-400"
             } animate-pulse`} />
             <span className="text-white/50 text-sm">
-              {isHost ? "Broadcasting" : isGuest ? "Viewing as guest" : isPremiumListener && isSyncEnabled ? "Listening along" : "Synced"}
+              {isHost ? "Broadcasting" : isGuest && youtubeEnabled ? "Playing via YouTube" : isGuest ? "Viewing as guest" : isPremiumListener && isSyncEnabled ? "Listening along" : "Synced"}
             </span>
+            
+            {/* YouTube playing indicator with controls */}
+            {youtubeEnabled && youtubeStatus && (
+              <div className="flex items-center gap-1">
+                <motion.div
+                  animate={{ scale: youtubeStatus.isPlaying ? [1, 1.2, 1] : 1 }}
+                  transition={{ duration: 1, repeat: youtubeStatus.isPlaying ? Infinity : 0 }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30"
+                >
+                  <svg className="w-3 h-3 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                  </svg>
+                  <span className="text-red-300 text-xs">{youtubeStatus.isPlaying ? "Playing" : "Paused"}</span>
+                </motion.div>
+                
+                {/* Mute toggle */}
+                {onYoutubeMuteToggle && (
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={onYoutubeMuteToggle}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                    title={youtubeStatus.isMuted ? "Unmute" : "Mute"}
+                  >
+                    {youtubeStatus.isMuted ? (
+                      <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                    )}
+                  </motion.button>
+                )}
+                
+                {/* Close YouTube */}
+                {onYoutubeToggle && (
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => onYoutubeToggle(false)}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Stop YouTube"
+                  >
+                    <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </motion.button>
+                )}
+              </div>
+            )}
             
             {/* Sync toggle for Premium listeners */}
             {isPremiumListener && onSyncToggle && (
@@ -451,6 +510,8 @@ export function HUD({
   isPremiumListener,
   youtubeEnabled,
   onYoutubeToggle,
+  youtubeStatus,
+  onYoutubeMuteToggle,
 }: HUDProps) {
   // Show landing page for unauthenticated non-guests
   if (!session && !isGuest) {
@@ -485,6 +546,8 @@ export function HUD({
             onSyncToggle={onSyncToggle}
             youtubeEnabled={youtubeEnabled}
             onYoutubeToggle={onYoutubeToggle}
+            youtubeStatus={youtubeStatus}
+            onYoutubeMuteToggle={onYoutubeMuteToggle}
           />
         </AnimatePresence>
       </div>
