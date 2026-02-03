@@ -11,7 +11,9 @@ interface YouTubePlayerProps {
 }
 
 // Sync tolerance in seconds
-const SYNC_TOLERANCE = 5;
+const SYNC_TOLERANCE = 10;
+// Cooldown between syncs in milliseconds
+const SYNC_COOLDOWN = 15000;
 
 // YouTube Player State constants
 const YT_PLAYING = 1;
@@ -78,6 +80,8 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
   const containerRef = useRef<HTMLDivElement>(null);
   const timeUpdateRef = useRef<NodeJS.Timeout | null>(null);
   const apiLoadedRef = useRef(false);
+  const lastSyncTimeRef = useRef<number>(0);
+  const initialSyncDoneRef = useRef(false);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -142,6 +146,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
           setVideoId(data.videoId);
           setVideoTitle(data.title);
           lastSearchedTrack.current = trackKey;
+          initialSyncDoneRef.current = false; // Reset for new track
         } else {
           setSearchError(data.error || "Video not found");
           setVideoId(null);
@@ -261,12 +266,23 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
         playerRef.current.pauseVideo();
       }
 
-      // Sync position (with tolerance)
-      const hostPositionSec = (hostState.progressMs || 0) / 1000;
-      const drift = Math.abs(currentTime - hostPositionSec);
+      // Calculate expected host position accounting for time elapsed since update
+      const timeSinceUpdate = hostState.timestamp ? (Date.now() - hostState.timestamp) / 1000 : 0;
+      const expectedHostPosition = ((hostState.progressMs || 0) / 1000) + (hostState.isPlaying ? timeSinceUpdate : 0);
+      const drift = Math.abs(currentTime - expectedHostPosition);
+      const now = Date.now();
+      const timeSinceLastSync = now - lastSyncTimeRef.current;
 
-      if (drift > SYNC_TOLERANCE && hostState.isPlaying) {
-        playerRef.current.seekTo(hostPositionSec, true);
+      // Only sync if:
+      // 1. Initial sync hasn't been done yet, OR
+      // 2. Drift is significant AND cooldown has passed
+      const shouldSync = !initialSyncDoneRef.current || 
+        (drift > SYNC_TOLERANCE && timeSinceLastSync > SYNC_COOLDOWN && hostState.isPlaying);
+
+      if (shouldSync && hostState.isPlaying) {
+        playerRef.current.seekTo(expectedHostPosition, true);
+        lastSyncTimeRef.current = now;
+        initialSyncDoneRef.current = true;
         setShowSyncStatus(true);
         
         if (syncTimeoutRef.current) {
