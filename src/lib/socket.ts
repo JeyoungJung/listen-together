@@ -5,25 +5,12 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    console.log("Creating new socket connection...");
     socket = io({
       path: "/api/socketio",
       addTrailingSlash: false,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-    });
-
-    socket.on("connect", () => {
-      console.log("Socket.io connected with id:", socket?.id);
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("Socket.io connection error:", error.message);
-    });
-
-    socket.on("disconnect", (reason) => {
-      console.log("Socket.io disconnected:", reason);
     });
   }
   return socket;
@@ -47,6 +34,5 @@ export const SOCKET_EVENTS = {
 
 // Listener requests current state from host
 export function requestSync(socket: Socket): void {
-  console.log("Requesting sync from server...");
   socket.emit(SOCKET_EVENTS.REQUEST_SYNC);
 }

@@ -47,7 +47,6 @@ export function useHostSync({
 
   const fetchCurrentlyPlaying = useCallback(async () => {
     try {
-      console.log("Host: Fetching current playback...");
       const response = await fetch("/api/spotify/currently-playing");
       
       if (!response.ok) {
@@ -55,7 +54,6 @@ export function useHostSync({
       }
 
       const data: CurrentlyPlayingResponse = await response.json();
-      console.log("Host: Playback data:", data);
 
       const update: HostUpdate = {
         trackUri: data.track?.uri || null,
@@ -91,7 +89,6 @@ export function useHostSync({
   const startPolling = useCallback(() => {
     if (!isHost || intervalRef.current) return;
 
-    console.log("Host: Starting playback polling...");
     setIsPolling(true);
     
     // Fetch immediately

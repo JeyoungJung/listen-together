@@ -46,7 +46,6 @@ export function useListenerSync({
     if (!socket) return;
 
     const handleHostUpdate = (update: HostUpdate) => {
-      console.log("useListenerSync received update:", update.trackName, update.isPlaying);
       setHostState(update);
       setSyncStatus("synced");
       setLastSyncTime(Date.now());
@@ -58,7 +57,6 @@ export function useListenerSync({
     socket.on(SOCKET_EVENTS.SYNC_RESPONSE, handleHostUpdate);
 
     socket.on("connect", () => {
-      console.log("useListenerSync: Socket connected, requesting initial sync");
       hasRequestedInitialSync.current = false; // Reset on reconnect
       setSyncStatus("syncing");
       requestSync(socket);
@@ -71,7 +69,6 @@ export function useListenerSync({
     // Request initial sync when socket is already connected
     if (socket.connected && !hasRequestedInitialSync.current) {
       hasRequestedInitialSync.current = true;
-      console.log("useListenerSync: Requesting initial sync");
       setSyncStatus("syncing");
       requestSync(socket);
     }

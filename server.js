@@ -126,12 +126,8 @@ app.prepare().then(() => {
 
     // Listener requests sync with current host state
     socket.on("request_sync", () => {
-      console.log("Sync requested by:", socket.id, "- latestHostUpdate:", latestHostUpdate?.trackName || "null");
       if (latestHostUpdate) {
-        console.log("Sending sync_response to", socket.id, ":", latestHostUpdate.trackName);
         socket.emit("sync_response", latestHostUpdate);
-      } else {
-        console.log("No latestHostUpdate available yet");
       }
     });
 
