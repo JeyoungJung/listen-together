@@ -20,6 +20,8 @@ interface HUDProps {
   isSyncEnabled?: boolean;
   onSyncToggle?: (enabled: boolean) => void;
   isPremiumListener?: boolean;
+  youtubeEnabled?: boolean;
+  onYoutubeToggle?: (enabled: boolean) => void;
 }
 
 function formatTime(ms: number): string {
@@ -132,6 +134,8 @@ function NowPlayingBar({
   isPremiumListener,
   isSyncEnabled,
   onSyncToggle,
+  youtubeEnabled,
+  onYoutubeToggle,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -142,6 +146,8 @@ function NowPlayingBar({
   isPremiumListener?: boolean;
   isSyncEnabled?: boolean;
   onSyncToggle?: (enabled: boolean) => void;
+  youtubeEnabled?: boolean;
+  onYoutubeToggle?: (enabled: boolean) => void;
 }) {
   const [showProgress] = useState(true);
 
@@ -319,6 +325,25 @@ function NowPlayingBar({
                   <path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm0 19.104c-3.924 0-7.104-3.18-7.104-7.104S8.076 4.896 12 4.896s7.104 3.18 7.104 7.104-3.18 7.104-7.104 7.104zm0-13.332c-3.432 0-6.228 2.796-6.228 6.228S8.568 18.228 12 18.228s6.228-2.796 6.228-6.228S15.432 5.772 12 5.772zM9.684 15.54V8.46L15.816 12l-6.132 3.54z"/>
                 </svg>
               </motion.a>
+
+              {/* YouTube embedded player toggle - only for guests */}
+              {isGuest && onYoutubeToggle && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onYoutubeToggle(!youtubeEnabled)}
+                  className={`p-2 rounded-lg transition-all ${
+                    youtubeEnabled 
+                      ? "bg-red-500/30 border border-red-500/40" 
+                      : "bg-red-500/20 hover:bg-red-500/30 border border-red-500/20"
+                  }`}
+                  title={youtubeEnabled ? "Close YouTube player" : "Listen on YouTube"}
+                >
+                  <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                  </svg>
+                </motion.button>
+              )}
             </div>
           )}
         </div>
@@ -424,6 +449,8 @@ export function HUD({
   isSyncEnabled,
   onSyncToggle,
   isPremiumListener,
+  youtubeEnabled,
+  onYoutubeToggle,
 }: HUDProps) {
   // Show landing page for unauthenticated non-guests
   if (!session && !isGuest) {
@@ -456,6 +483,8 @@ export function HUD({
             isPremiumListener={isPremiumListener}
             isSyncEnabled={isSyncEnabled}
             onSyncToggle={onSyncToggle}
+            youtubeEnabled={youtubeEnabled}
+            onYoutubeToggle={onYoutubeToggle}
           />
         </AnimatePresence>
       </div>

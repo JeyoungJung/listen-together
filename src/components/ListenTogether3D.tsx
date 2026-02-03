@@ -244,6 +244,8 @@ export function ListenTogether3D() {
         isPremiumListener={isListener && !!deviceId}
         isSyncEnabled={isSyncEnabled}
         onSyncToggle={setSyncEnabled}
+        youtubeEnabled={youtubeEnabled}
+        onYoutubeToggle={setYoutubeEnabled}
       />
 
       {/* YouTube Player for guests */}
