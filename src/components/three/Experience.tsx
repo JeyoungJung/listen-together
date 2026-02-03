@@ -24,20 +24,21 @@ interface SceneProps {
 // Cache for album colors
 const albumColorCache = new Map<string, AlbumColors>();
 
+// Default colors - defined outside component to avoid dependency issues
+const DEFAULT_ALBUM_COLORS: AlbumColors = {
+  primary: "#2d1b4e",
+  secondary: "#4a2c7a",
+  accent: "#9b59b6",
+};
+
 // Extract dominant colors from album art via server API (bypasses CORS)
 function useAlbumColors(albumArtUrl: string | null): AlbumColors {
-  const defaultColors: AlbumColors = {
-    primary: "#2d1b4e",
-    secondary: "#4a2c7a",
-    accent: "#9b59b6",
-  };
-  
-  const [colors, setColors] = useState<AlbumColors>(defaultColors);
+  const [colors, setColors] = useState<AlbumColors>(DEFAULT_ALBUM_COLORS);
   const lastUrlRef = useRef<string | null>(null);
   
   useEffect(() => {
     if (!albumArtUrl) {
-      setColors(defaultColors);
+      setColors(DEFAULT_ALBUM_COLORS);
       return;
     }
     
@@ -62,9 +63,9 @@ function useAlbumColors(albumArtUrl: string | null): AlbumColors {
         
         const data = await response.json();
         const newColors: AlbumColors = {
-          primary: data.primary || defaultColors.primary,
-          secondary: data.secondary || defaultColors.secondary,
-          accent: data.accent || defaultColors.accent,
+          primary: data.primary || DEFAULT_ALBUM_COLORS.primary,
+          secondary: data.secondary || DEFAULT_ALBUM_COLORS.secondary,
+          accent: data.accent || DEFAULT_ALBUM_COLORS.accent,
         };
         
         // Cache the result
@@ -102,7 +103,8 @@ function DynamicBackground({
   const meshRef = useRef<THREE.Mesh>(null);
   const { viewport } = useThree();
   
-  // Create gradient shader
+  // Create gradient shader - uniforms are intentionally created once and updated via useFrame
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
     uColor1: { value: new THREE.Color(albumColors.primary) },

@@ -77,7 +77,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMutedState] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isSearching, setIsSearching] = useState(false);
   
   // Register setter globally for external control
   const setIsMuted = (muted: boolean) => {
@@ -196,7 +195,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     // Not in cache, need to search
     async function searchVideo() {
       setSearchError(null);
-      setIsSearching(true);
 
       try {
         const params = new URLSearchParams({
@@ -220,8 +218,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       } catch (error) {
         console.error("Error searching YouTube:", error);
         setSearchError("Failed to search YouTube");
-      } finally {
-        setIsSearching(false);
       }
     }
 

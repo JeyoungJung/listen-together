@@ -148,15 +148,18 @@ export function ReactiveOrb({ tempo, energy, isPlaying }: ReactiveOrbProps) {
   const currentColor1 = useRef(new THREE.Color(0.2, 0.6, 0.7));
   const currentColor2 = useRef(new THREE.Color(0.3, 0.7, 0.8));
   
-  // Create shader material with uniforms
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const uniforms = useMemo(() => ({
-    uTime: { value: 0 },
-    uEnergy: { value: energy },
-    uTempo: { value: tempo },
-    uColor1: { value: new THREE.Color(0.2, 0.6, 0.7) },
-    uColor2: { value: new THREE.Color(0.3, 0.7, 0.8) },
-  }), []); // Intentionally empty - we update uniforms in useFrame
+  // Create shader material with uniforms - intentionally empty deps, we update in useFrame
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uEnergy: { value: energy },
+      uTempo: { value: tempo },
+      uColor1: { value: new THREE.Color(0.2, 0.6, 0.7) },
+      uColor2: { value: new THREE.Color(0.3, 0.7, 0.8) },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   // Update uniforms when props change
   useFrame((state) => {
