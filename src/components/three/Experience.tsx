@@ -27,9 +27,9 @@ const albumColorCache = new Map<string, AlbumColors>();
 // Extract dominant colors from album art via server API (bypasses CORS)
 function useAlbumColors(albumArtUrl: string | null): AlbumColors {
   const defaultColors: AlbumColors = {
-    primary: "#1a1a35",
-    secondary: "#252545",
-    accent: "#6b9dff",
+    primary: "#2d1b4e",
+    secondary: "#4a2c7a",
+    accent: "#9b59b6",
   };
   
   const [colors, setColors] = useState<AlbumColors>(defaultColors);
@@ -372,24 +372,43 @@ interface ExperienceProps {
   energy?: number;
 }
 
+// Component to sync clear color with album colors
+function ClearColorSync({ color }: { color: string }) {
+  const { gl } = useThree();
+  
+  useEffect(() => {
+    gl.setClearColor(new THREE.Color(color));
+  }, [gl, color]);
+  
+  return null;
+}
+
 export function Experience({ albumArtUrl, isPlaying, tempo = 120, energy = 0.5 }: ExperienceProps) {
   // Extract colors from album art
   const albumColors = useAlbumColors(albumArtUrl);
   
+  // Create gradient style for CSS fallback
+  const gradientStyle = {
+    background: `radial-gradient(ellipse at center, ${albumColors.secondary} 0%, ${albumColors.primary} 70%, #000000 100%)`,
+  };
+  
   return (
-    <div className="fixed inset-0 -z-10 transition-colors duration-1000" style={{ backgroundColor: albumColors.primary }}>
+    <div className="fixed inset-0 -z-10 transition-all duration-1000" style={gradientStyle}>
       <Canvas
         camera={{ position: [0, 0, 8], fov: 50 }}
         gl={{
           antialias: true,
-          alpha: false,
+          alpha: true,
+          powerPreference: "default",
+          failIfMajorPerformanceCaveat: false,
         }}
+        dpr={[1, 2]}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.0;
-          gl.setClearColor(new THREE.Color(albumColors.primary));
         }}
       >
+        <ClearColorSync color={albumColors.primary} />
         <Scene 
           albumArtUrl={albumArtUrl} 
           isPlaying={isPlaying} 

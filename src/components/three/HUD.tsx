@@ -400,23 +400,21 @@ function NowPlayingBar({
         </div>
 
         {/* Controls Row */}
-        <div className="flex items-center justify-between pt-1">
-          {/* Left: Status */}
-          <div className="flex items-center gap-3">
-            {/* Status Indicator */}
-            <div className="flex items-center gap-2">
-              <span className={`w-[6px] h-[6px] rounded-full ${
-                syncStatus === "synced" || displayState.isPlaying 
-                  ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" 
-                  : "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"
-              }`} />
-              <span className="text-[12px] text-white/40 font-medium tracking-tight">
-                {statusText}
-              </span>
-            </div>
-            
-            {/* YouTube Status Pill */}
-            {youtubeEnabled && youtubeStatus && (
+        <div className="flex flex-col gap-3 pt-1">
+          {/* Top: YouTube Status + Controls (when enabled) */}
+          {youtubeEnabled && youtubeStatus && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-[6px] h-[6px] rounded-full ${
+                  youtubeStatus.isPlaying 
+                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" 
+                    : "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"
+                }`} />
+                <span className="text-[12px] text-white/40 font-medium tracking-tight">
+                  YouTube
+                </span>
+              </div>
+              
               <motion.div
                 animate={{ 
                   boxShadow: youtubeStatus.isPlaying 
@@ -463,12 +461,28 @@ function NowPlayingBar({
                   )}
                 </div>
               </motion.div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Right: Service Buttons */}
-          {(isGuest || !isHost) && displayState.trackUri && (
-            <div className="flex items-center gap-2">
+          {/* Bottom: Status + Service Buttons */}
+          <div className="flex items-center justify-between">
+            {/* Left: Status */}
+            {!youtubeEnabled && (
+              <div className="flex items-center gap-2">
+                <span className={`w-[6px] h-[6px] rounded-full ${
+                  syncStatus === "synced" || displayState.isPlaying 
+                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" 
+                    : "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"
+                }`} />
+                <span className="text-[12px] text-white/40 font-medium tracking-tight">
+                  {statusText}
+                </span>
+              </div>
+            )}
+
+            {/* Right: Service Buttons */}
+            {(isGuest || !isHost) && displayState.trackUri && (
+              <div className={`flex items-center gap-2 ${youtubeEnabled ? 'w-full justify-center' : 'ml-auto'}`}>
               {/* Sync Toggle (Premium only) */}
               {isPremiumListener && onSyncToggle && (
                 <motion.button
@@ -525,7 +539,7 @@ function NowPlayingBar({
               </a>
 
               {/* YouTube Player Toggle (Guests only) */}
-              {isGuest && onYoutubeToggle && (
+              {isGuest && onYoutubeToggle && !youtubeEnabled && (
                 <IconButton
                   onClick={() => onYoutubeToggle(!youtubeEnabled)}
                   label={youtubeEnabled ? "Stop YouTube" : "Play on YouTube"}
@@ -537,8 +551,9 @@ function NowPlayingBar({
                   </svg>
                 </IconButton>
               )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </GlassPanel>
