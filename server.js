@@ -4,7 +4,8 @@ const next = require("next");
 const { Server } = require("socket.io");
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = "localhost";
+// In production, bind to 0.0.0.0 so Railway can route traffic
+const hostname = dev ? "localhost" : "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000", 10);
 
 const app = next({ dev, hostname, port });
@@ -43,7 +44,8 @@ app.prepare().then(() => {
   async function pollHostPlayback() {
     try {
       // Add timestamp to bust any caching
-      const response = await fetch(`http://${hostname}:${port}/api/host/playback?t=${Date.now()}`);
+      // Always use localhost for internal server-to-server calls
+      const response = await fetch(`http://localhost:${port}/api/host/playback?t=${Date.now()}`);
       
       if (!response.ok) {
         if (response.status === 401) {
