@@ -305,14 +305,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
         playerRef.current.seekTo(expectedHostPosition, true);
         lastSyncTimeRef.current = now;
         initialSyncDoneRef.current = true;
-        setShowSyncStatus(true);
-        
-        if (syncTimeoutRef.current) {
-          clearTimeout(syncTimeoutRef.current);
-        }
-        syncTimeoutRef.current = setTimeout(() => {
-          setShowSyncStatus(false);
-        }, 2000);
       }
     } catch {
       // Player might not be ready

@@ -270,8 +270,12 @@ function NowPlayingBar({
             {youtubeEnabled && youtubeStatus && (
               <div className="flex items-center gap-1">
                 <motion.div
-                  animate={{ scale: youtubeStatus.isPlaying ? [1, 1.2, 1] : 1 }}
-                  transition={{ duration: 1, repeat: youtubeStatus.isPlaying ? Infinity : 0 }}
+                  animate={{ 
+                    boxShadow: youtubeStatus.isPlaying 
+                      ? ["0 0 0px rgba(239, 68, 68, 0)", "0 0 8px rgba(239, 68, 68, 0.6)", "0 0 0px rgba(239, 68, 68, 0)"]
+                      : "0 0 0px rgba(239, 68, 68, 0)"
+                  }}
+                  transition={{ duration: 2, repeat: youtubeStatus.isPlaying ? Infinity : 0, ease: "easeInOut" }}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30"
                 >
                   <svg className="w-3 h-3 text-red-400" viewBox="0 0 24 24" fill="currentColor">
