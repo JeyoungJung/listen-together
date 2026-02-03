@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useState, useCallback } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Stars, Float } from "@react-three/drei";
 import * as THREE from "three";
@@ -21,122 +21,70 @@ interface SceneProps {
   albumColors: AlbumColors;
 }
 
-// Extract dominant colors from album art
+// Cache for album colors
+const albumColorCache = new Map<string, AlbumColors>();
+
+// Extract dominant colors from album art via server API (bypasses CORS)
 function useAlbumColors(albumArtUrl: string | null): AlbumColors {
-  const [colors, setColors] = useState<AlbumColors>({
-    primary: "#0a0a20",
-    secondary: "#151530",
+  const defaultColors: AlbumColors = {
+    primary: "#1a1a35",
+    secondary: "#252545",
     accent: "#6b9dff",
-  });
+  };
   
-  const extractColors = useCallback((img: HTMLImageElement) => {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    
-    // Use small size for faster processing
-    const size = 50;
-    canvas.width = size;
-    canvas.height = size;
-    ctx.drawImage(img, 0, 0, size, size);
-    
-    const imageData = ctx.getImageData(0, 0, size, size).data;
-    
-    // Collect color samples
-    const colorBuckets: { [key: string]: { r: number; g: number; b: number; count: number } } = {};
-    
-    for (let i = 0; i < imageData.length; i += 4) {
-      const r = imageData[i];
-      const g = imageData[i + 1];
-      const b = imageData[i + 2];
-      
-      // Skip very dark or very light colors
-      const brightness = (r + g + b) / 3;
-      if (brightness < 20 || brightness > 235) continue;
-      
-      // Quantize to reduce similar colors
-      const qr = Math.floor(r / 32) * 32;
-      const qg = Math.floor(g / 32) * 32;
-      const qb = Math.floor(b / 32) * 32;
-      const key = `${qr},${qg},${qb}`;
-      
-      if (!colorBuckets[key]) {
-        colorBuckets[key] = { r: 0, g: 0, b: 0, count: 0 };
-      }
-      colorBuckets[key].r += r;
-      colorBuckets[key].g += g;
-      colorBuckets[key].b += b;
-      colorBuckets[key].count++;
-    }
-    
-    // Sort by frequency
-    const sortedColors = Object.values(colorBuckets)
-      .filter(c => c.count > 5)
-      .sort((a, b) => b.count - a.count)
-      .map(c => ({
-        r: Math.floor(c.r / c.count),
-        g: Math.floor(c.g / c.count),
-        b: Math.floor(c.b / c.count),
-      }));
-    
-    if (sortedColors.length === 0) return;
-    
-    // Get primary (most common), secondary, and accent colors
-    const primary = sortedColors[0];
-    const secondary = sortedColors[Math.min(1, sortedColors.length - 1)];
-    
-    // Find a vibrant accent color (high saturation)
-    let accent = sortedColors[Math.min(2, sortedColors.length - 1)];
-    for (const c of sortedColors.slice(0, 10)) {
-      const max = Math.max(c.r, c.g, c.b);
-      const min = Math.min(c.r, c.g, c.b);
-      const saturation = max === 0 ? 0 : (max - min) / max;
-      if (saturation > 0.4) {
-        accent = c;
-        break;
-      }
-    }
-    
-    // Darken colors for background use (multiply by factor)
-    const darken = (c: { r: number; g: number; b: number }, factor: number) => {
-      const r = Math.floor(c.r * factor);
-      const g = Math.floor(c.g * factor);
-      const b = Math.floor(c.b * factor);
-      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    };
-    
-    // Convert accent to full brightness for lights
-    const brighten = (c: { r: number; g: number; b: number }) => {
-      const max = Math.max(c.r, c.g, c.b, 1);
-      const factor = 255 / max;
-      const r = Math.min(255, Math.floor(c.r * factor));
-      const g = Math.min(255, Math.floor(c.g * factor));
-      const b = Math.min(255, Math.floor(c.b * factor));
-      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    };
-    
-    setColors({
-      primary: darken(primary, 0.15),
-      secondary: darken(secondary, 0.25),
-      accent: brighten(accent),
-    });
-  }, []);
+  const [colors, setColors] = useState<AlbumColors>(defaultColors);
+  const lastUrlRef = useRef<string | null>(null);
   
   useEffect(() => {
     if (!albumArtUrl) {
-      setColors({
-        primary: "#0a0a20",
-        secondary: "#151530",
-        accent: "#6b9dff",
-      });
+      setColors(defaultColors);
       return;
     }
     
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => extractColors(img);
-    img.src = albumArtUrl;
-  }, [albumArtUrl, extractColors]);
+    // Skip if same URL
+    if (albumArtUrl === lastUrlRef.current) {
+      return;
+    }
+    lastUrlRef.current = albumArtUrl;
+    
+    // Check client-side cache first
+    const cached = albumColorCache.get(albumArtUrl);
+    if (cached) {
+      setColors(cached);
+      return;
+    }
+    
+    // Fetch colors from server API
+    const fetchColors = async () => {
+      try {
+        const response = await fetch(`/api/album-colors?imageUrl=${encodeURIComponent(albumArtUrl)}`);
+        if (!response.ok) throw new Error("Failed to fetch colors");
+        
+        const data = await response.json();
+        const newColors: AlbumColors = {
+          primary: data.primary || defaultColors.primary,
+          secondary: data.secondary || defaultColors.secondary,
+          accent: data.accent || defaultColors.accent,
+        };
+        
+        // Cache the result
+        albumColorCache.set(albumArtUrl, newColors);
+        
+        // Limit cache size
+        if (albumColorCache.size > 50) {
+          const firstKey = albumColorCache.keys().next().value;
+          if (firstKey) albumColorCache.delete(firstKey);
+        }
+        
+        setColors(newColors);
+      } catch (error) {
+        console.warn("Error fetching album colors:", error);
+        // Keep current colors on error
+      }
+    };
+    
+    fetchColors();
+  }, [albumArtUrl]);
   
   return colors;
 }
