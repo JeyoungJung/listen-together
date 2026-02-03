@@ -1,31 +1,28 @@
 # Use Node.js 20 Alpine
 FROM node:20-alpine
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Install build dependencies and yarn
+RUN apk add --no-cache python3 make g++ && \
+    corepack enable && \
+    corepack prepare yarn@stable --activate
 
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json .npmrc ./
+COPY package.json ./
 
-# Cache bust - change this to force fresh install
-ARG CACHEBUST=1
-
-# Install dependencies and verify
-RUN echo "Installing dependencies..." && \
-    npm ci --legacy-peer-deps && \
+# Install dependencies with yarn (more stable than npm in CI)
+RUN yarn install && \
     echo "Verifying installation..." && \
-    ls -la node_modules/ | head -20 && \
-    ls -la node_modules/.bin/ | head -20 && \
-    test -f node_modules/.bin/next && echo "next binary found!" || (echo "ERROR: next not found!" && exit 1)
+    ls -la node_modules/.bin/ | head -10 && \
+    test -f node_modules/.bin/next && echo "next binary found!"
 
 # Copy source code
 COPY . .
 
-# Build Next.js using npx to ensure we find it
+# Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npx next build
+RUN yarn build
 
 # Set production environment
 ENV NODE_ENV=production
