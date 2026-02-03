@@ -5,6 +5,8 @@ import { signIn, signOut } from "next-auth/react";
 import { Session } from "next-auth";
 import Image from "next/image";
 import { HostUpdate } from "@/types/spotify";
+import { formatTime } from "@/lib/utils";
+import { useInterpolatedProgress } from "@/hooks/useInterpolatedProgress";
 
 // ============================================================================
 // SPRING PHYSICS CONFIG (Apple-style "heavy" feel)
@@ -40,11 +42,18 @@ interface HUDProps {
 // ============================================================================
 // UTILITIES
 // ============================================================================
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+function getStatusText(
+  isHost: boolean,
+  isGuest: boolean,
+  youtubeEnabled: boolean,
+  isPremiumListener: boolean,
+  isSyncEnabled: boolean
+): string {
+  if (isHost) return "Broadcasting";
+  if (isGuest && youtubeEnabled) return "YouTube";
+  if (isGuest) return "Guest";
+  if (isPremiumListener && isSyncEnabled) return "Synced";
+  return "Connected";
 }
 
 // ============================================================================
@@ -264,6 +273,14 @@ function NowPlayingBar({
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
 }) {
+  // Interpolate progress for smooth updates (instead of jumping every 3s)
+  const interpolatedProgress = useInterpolatedProgress({
+    serverProgressMs: displayState?.progressMs ?? 0,
+    durationMs: displayState?.durationMs ?? 0,
+    isPlaying: displayState?.isPlaying ?? false,
+    serverTimestamp: displayState?.timestamp ?? Date.now(),
+  });
+
   // Waiting state
   if (!displayState?.trackName) {
     return (
@@ -285,18 +302,16 @@ function NowPlayingBar({
   }
 
   const progressPercent = displayState.durationMs > 0 
-    ? (displayState.progressMs / displayState.durationMs) * 100 
+    ? (interpolatedProgress / displayState.durationMs) * 100 
     : 0;
 
-  const statusText = isHost 
-    ? "Broadcasting" 
-    : isGuest && youtubeEnabled 
-    ? "YouTube" 
-    : isGuest 
-    ? "Guest" 
-    : isPremiumListener && isSyncEnabled 
-    ? "Synced" 
-    : "Connected";
+  const statusText = getStatusText(
+    isHost,
+    isGuest,
+    youtubeEnabled ?? false,
+    isPremiumListener ?? false,
+    isSyncEnabled ?? false
+  );
 
   return (
     <GlassPanel className="p-6" floating>
@@ -379,7 +394,7 @@ function NowPlayingBar({
           
           {/* Time Display - Tabular Nums for no jitter */}
           <div className="flex justify-between text-[11px] text-white/30 font-medium tabular-nums">
-            <span>{formatTime(displayState.progressMs)}</span>
+            <span>{formatTime(interpolatedProgress)}</span>
             <span>{formatTime(displayState.durationMs)}</span>
           </div>
         </div>

@@ -3,18 +3,12 @@
 import { useState, useEffect } from "react";
 import { HostUpdate } from "@/types/spotify";
 import Image from "next/image";
+import { formatTime } from "@/lib/utils";
 
 interface PlayerProps {
   state: HostUpdate | null;
   isHost: boolean;
   isGuest?: boolean;
-}
-
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export function Player({ state, isHost, isGuest = false }: PlayerProps) {

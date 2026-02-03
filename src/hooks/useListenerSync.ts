@@ -56,34 +56,8 @@ export function useListenerSync({
       const positionDrift = Math.abs((update.progressMs || 0) - lastSyncedPosition.current);
       const needsPositionSync = positionDrift > SYNC_TOLERANCE_MS;
 
-      if (update.isPlaying && update.trackUri) {
-        // If track changed or position drifted too much, sync
-        if (trackChanged || needsPositionSync) {
-          // Play the track at the correct position
-          const response = await fetch("/api/spotify/play", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              trackUri: update.trackUri,
-              positionMs: update.progressMs || 0,
-              deviceId: deviceId,
-            }),
-          });
-
-          if (response.ok) {
-            lastSyncedTrack.current = update.trackUri;
-            lastSyncedPosition.current = update.progressMs || 0;
-            setSyncStatus("synced");
-          } else {
-            const data = await response.json();
-            setError(data.error || "Failed to sync playback");
-            setSyncStatus("error");
-          }
-        }
-      } else if (!update.isPlaying) {
-        // Host paused - pause listener too
+      // Handle pause state
+      if (!update.isPlaying) {
         await fetch("/api/spotify/play", {
           method: "POST",
           headers: {
@@ -95,6 +69,32 @@ export function useListenerSync({
           }),
         });
         lastSyncedTrack.current = update.trackUri;
+        return;
+      }
+
+      // Handle play state - sync if track changed or position drifted
+      if (update.isPlaying && update.trackUri && (trackChanged || needsPositionSync)) {
+        const response = await fetch("/api/spotify/play", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            trackUri: update.trackUri,
+            positionMs: update.progressMs || 0,
+            deviceId: deviceId,
+          }),
+        });
+
+        if (response.ok) {
+          lastSyncedTrack.current = update.trackUri;
+          lastSyncedPosition.current = update.progressMs || 0;
+          setSyncStatus("synced");
+        } else {
+          const data = await response.json();
+          setError(data.error || "Failed to sync playback");
+          setSyncStatus("error");
+        }
       }
     } catch (err) {
       console.error("Error syncing playback:", err);

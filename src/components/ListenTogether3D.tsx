@@ -8,6 +8,14 @@ import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import { useHostSync } from "@/hooks/useHostSync";
 import { useListenerSync } from "@/hooks/useListenerSync";
 import { getSocket } from "@/lib/socket";
+import { extractTrackId } from "@/lib/utils";
+import {
+  getAppleMusicLink,
+  setAppleMusicLink,
+  hasAppleMusicLink,
+  getCachedAudioFeatures,
+  cacheAudioFeatures,
+} from "@/lib/cache";
 import { HostUpdate } from "@/types/spotify";
 import { HUD } from "./three/HUD";
 import { YouTubePlayer, useYouTubeControls } from "./YouTubePlayer";
@@ -34,16 +42,9 @@ function LoadingScreen() {
   );
 }
 
-// Cache for prefetched Apple Music links
-const appleMusicLinkCache = new Map<string, string>();
-
-// Cache for audio features
-const audioFeaturesCache = new Map<string, { tempo: number; energy: number }>();
-
 export function ListenTogether3D() {
   const { data: session, status } = useSession();
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [, setPlayerError] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [appleMusicLoading, setAppleMusicLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -70,18 +71,16 @@ export function ListenTogether3D() {
   useEffect(() => {
     const socketInstance = getSocket();
     
-    socketInstance.on("connect", () => {
+    const handleConnect = () => {
       setSocket(socketInstance);
-    });
+    };
 
-    socketInstance.on("disconnect", () => {
-      // Socket disconnected
-    });
-
-    // Listen for listener count updates
-    socketInstance.on("listener_count", (data: { count: number }) => {
+    const handleListenerCount = (data: { count: number }) => {
       setListenerCount(data.count);
-    });
+    };
+
+    socketInstance.on("connect", handleConnect);
+    socketInstance.on("listener_count", handleListenerCount);
 
     // Set immediately if already connected
     if (socketInstance.connected) {
@@ -89,7 +88,8 @@ export function ListenTogether3D() {
     }
 
     return () => {
-      socketInstance.off("listener_count");
+      socketInstance.off("connect", handleConnect);
+      socketInstance.off("listener_count", handleListenerCount);
     };
   }, []);
 
@@ -98,7 +98,6 @@ export function ListenTogether3D() {
     deviceId,
   } = useSpotifyPlayer({
     accessToken: isListener ? session?.accessToken : undefined,
-    onError: (error) => setPlayerError(error.message),
   });
 
   // Host sync logic
@@ -129,11 +128,13 @@ export function ListenTogether3D() {
     const trackUri = displayState?.trackUri;
     if (!trackUri || trackUri === lastFeaturesTrack.current) return;
     
-    const trackId = trackUri.replace('spotify:track:', '');
+    const trackId = extractTrackId(trackUri);
+    if (!trackId) return;
+    
     lastFeaturesTrack.current = trackUri;
     
     // Check cache first
-    const cached = audioFeaturesCache.get(trackId);
+    const cached = getCachedAudioFeatures(trackId);
     if (cached) {
       setAudioFeatures(cached);
       return;
@@ -144,7 +145,7 @@ export function ListenTogether3D() {
       .then(res => res.json())
       .then(data => {
         const features = { tempo: data.tempo || 120, energy: data.energy || 0.5 };
-        audioFeaturesCache.set(trackId, features);
+        cacheAudioFeatures(trackId, features);
         setAudioFeatures(features);
       })
       .catch(() => {
@@ -158,18 +159,20 @@ export function ListenTogether3D() {
     const trackUri = displayState?.trackUri;
     if (!trackUri || trackUri === lastPrefetchedTrack.current) return;
     
-    const trackId = trackUri.replace('spotify:track:', '');
+    const trackId = extractTrackId(trackUri);
+    if (!trackId) return;
+    
     lastPrefetchedTrack.current = trackUri;
     
     // Skip if already cached
-    if (appleMusicLinkCache.has(trackId)) return;
+    if (hasAppleMusicLink(trackId)) return;
     
     // Prefetch in background
     fetch(`/api/music-link?trackId=${trackId}&platform=appleMusic`)
       .then(res => res.json())
       .then(data => {
         if (data.url) {
-          appleMusicLinkCache.set(trackId, data.url);
+          setAppleMusicLink(trackId, data.url);
         }
       })
       .catch(() => {
@@ -177,17 +180,19 @@ export function ListenTogether3D() {
       });
   }, [displayState?.trackUri]);
 
-  // Handle join as guest
+  // Handle join as guest - enable YouTube by default for guests
   const handleJoinAsGuest = useCallback(() => {
     setIsGuest(true);
+    setYoutubeEnabled(true);
   }, []);
 
   // Handle open in Apple Music - uses prefetched link if available
   const handleOpenAppleMusic = useCallback(async (trackUri: string) => {
-    const trackId = trackUri.replace('spotify:track:', '');
+    const trackId = extractTrackId(trackUri);
+    if (!trackId) return;
     
     // Check cache first - instant open!
-    const cachedUrl = appleMusicLinkCache.get(trackId);
+    const cachedUrl = getAppleMusicLink(trackId);
     if (cachedUrl) {
       window.open(cachedUrl, '_blank');
       return;
@@ -201,7 +206,7 @@ export function ListenTogether3D() {
       const data = await response.json();
       
       if (data.url) {
-        appleMusicLinkCache.set(trackId, data.url); // Cache for future
+        setAppleMusicLink(trackId, data.url); // Cache for future
         window.open(data.url, '_blank');
       } else {
         // Fallback to song.link if no direct link

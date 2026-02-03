@@ -22,10 +22,10 @@ function DynamicBackground({ tempo, energy, isPlaying }: { tempo: number; energy
   // Create gradient shader
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
-    uColor1: { value: new THREE.Color("#050510") },
-    uColor2: { value: new THREE.Color("#0a0a1a") },
-    uColor3: { value: new THREE.Color("#050510") },
-    uIntensity: { value: 0.3 },
+    uColor1: { value: new THREE.Color("#0a0a20") },
+    uColor2: { value: new THREE.Color("#151530") },
+    uColor3: { value: new THREE.Color("#0a0a20") },
+    uIntensity: { value: 0.5 },
   }), []);
 
   useFrame((state) => {
@@ -43,16 +43,16 @@ function DynamicBackground({ tempo, energy, isPlaying }: { tempo: number; energy
     
     if (tempoNorm < 0.33) {
       // Slow: Deep blue/teal
-      targetColor1 = new THREE.Color("#051520");
-      targetColor2 = new THREE.Color("#0a2530");
+      targetColor1 = new THREE.Color("#0a2535");
+      targetColor2 = new THREE.Color("#154050");
     } else if (tempoNorm < 0.66) {
       // Mid: Purple/magenta
-      targetColor1 = new THREE.Color("#150520");
-      targetColor2 = new THREE.Color("#200a30");
+      targetColor1 = new THREE.Color("#250a35");
+      targetColor2 = new THREE.Color("#351550");
     } else {
       // Fast: Warm orange/red
-      targetColor1 = new THREE.Color("#1a0a05");
-      targetColor2 = new THREE.Color("#251510");
+      targetColor1 = new THREE.Color("#2a150a");
+      targetColor2 = new THREE.Color("#402520");
     }
     
     // Lerp colors
@@ -60,7 +60,7 @@ function DynamicBackground({ tempo, energy, isPlaying }: { tempo: number; energy
     material.uniforms.uColor2.value.lerp(targetColor2, 0.01);
     
     // Intensity based on energy
-    const targetIntensity = isPlaying ? 0.3 + energy * 0.4 : 0.2;
+    const targetIntensity = isPlaying ? 0.5 + energy * 0.5 : 0.35;
     material.uniforms.uIntensity.value += (targetIntensity - material.uniforms.uIntensity.value) * 0.02;
   });
 
@@ -299,17 +299,17 @@ interface ExperienceProps {
 
 export function Experience({ albumArtUrl, isPlaying, tempo = 120, energy = 0.5 }: ExperienceProps) {
   // Calculate background color based on tempo for CSS fallback
-  const [bgColor, setBgColor] = useState("#050510");
+  const [bgColor, setBgColor] = useState("#0a0a20");
   
   useEffect(() => {
     const tempoNorm = Math.min(Math.max((tempo - 60) / 140, 0), 1);
     let color;
     if (tempoNorm < 0.33) {
-      color = "#051015"; // Teal tint
+      color = "#0a1520"; // Teal tint
     } else if (tempoNorm < 0.66) {
-      color = "#100515"; // Purple tint
+      color = "#180a20"; // Purple tint
     } else {
-      color = "#150a05"; // Warm tint
+      color = "#201008"; // Warm tint
     }
     setBgColor(color);
   }, [tempo]);

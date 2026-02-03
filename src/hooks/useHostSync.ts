@@ -42,8 +42,6 @@ export function useHostSync({
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTrackUriRef = useRef<string | null>(null);
-  const lastIsPlayingRef = useRef<boolean | null>(null);
 
   const fetchCurrentlyPlaying = useCallback(async () => {
     try {
@@ -70,13 +68,6 @@ export function useHostSync({
       setCurrentState(update);
       setError(null);
 
-      // Update refs for tracking changes
-      lastTrackUriRef.current = update.trackUri;
-      lastIsPlayingRef.current = update.isPlaying;
-      
-      // Note: Server-side polling handles broadcasting to listeners
-      // Host client just displays their own state
-
       return update;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -84,7 +75,7 @@ export function useHostSync({
       console.error("Error fetching currently playing:", err);
       return null;
     }
-  }, [socket]);
+  }, []);
 
   const startPolling = useCallback(() => {
     if (!isHost || intervalRef.current) return;

@@ -64,19 +64,17 @@ declare global {
 
 export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubePlayerProps) {
   const [videoId, setVideoId] = useState<string | null>(null);
-  const [, setVideoTitle] = useState<string | null>(null);
-  const [, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMutedState] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
   
   // Register setter globally for external control
   const setIsMuted = (muted: boolean) => {
     setIsMutedState(muted);
   };
   globalRefs.setIsMuted = setIsMuted;
-  const [currentTime, setCurrentTime] = useState(0);
   
   const lastSearchedTrack = useRef<string | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -133,7 +131,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     }
 
     async function searchVideo() {
-      setIsSearching(true);
       setSearchError(null);
 
       try {
@@ -157,7 +154,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
           }
           setIsPlayerReady(false);
           setVideoId(data.videoId);
-          setVideoTitle(data.title);
           lastSearchedTrack.current = trackKey;
           initialSyncDoneRef.current = false; // Reset for new track
         } else {
@@ -167,8 +163,6 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       } catch (error) {
         console.error("Error searching YouTube:", error);
         setSearchError("Failed to search YouTube");
-      } finally {
-        setIsSearching(false);
       }
     }
 
@@ -357,37 +351,41 @@ const globalRefs = {
   setIsMuted: null as ((muted: boolean) => void) | null,
 };
 
+function getPlayer(): YTPlayer | null {
+  return (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef ?? null;
+}
+
 // Export control functions for use in HUD
 export function useYouTubeControls() {
   return {
     toggleMute: () => {
-      const player = (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef;
-      if (player) {
-        try {
-          const isMuted = player.isMuted();
-          if (isMuted) {
-            player.unMute();
-            globalRefs.setIsMuted?.(false);
-          } else {
-            player.mute();
-            globalRefs.setIsMuted?.(true);
-          }
-        } catch {
-          // Ignore
+      const player = getPlayer();
+      if (!player) return;
+      
+      try {
+        const isMuted = player.isMuted();
+        if (isMuted) {
+          player.unMute();
+          globalRefs.setIsMuted?.(false);
+        } else {
+          player.mute();
+          globalRefs.setIsMuted?.(true);
         }
+      } catch {
+        // Ignore
       }
     },
     sync: (progressMs: number, shouldPlay: boolean) => {
-      const player = (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef;
-      if (player) {
-        try {
-          player.seekTo(progressMs / 1000, true);
-          if (shouldPlay) {
-            player.playVideo();
-          }
-        } catch {
-          // Ignore
+      const player = getPlayer();
+      if (!player) return;
+      
+      try {
+        player.seekTo(progressMs / 1000, true);
+        if (shouldPlay) {
+          player.playVideo();
         }
+      } catch {
+        // Ignore
       }
     },
   };
