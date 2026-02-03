@@ -254,21 +254,24 @@ function NowPlayingBar({
         )}
 
         {/* Status and actions */}
-        <div className="flex items-center justify-between pt-2">
-          {/* Status badge */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className={`w-2 h-2 rounded-full ${
-              syncStatus === "synced" || displayState.isPlaying 
-                ? "bg-green-400" 
-                : "bg-yellow-400"
-            } animate-pulse`} />
-            <span className="text-white/50 text-sm">
-              {isHost ? "Broadcasting" : isGuest && youtubeEnabled ? "Playing via YouTube" : isGuest ? "Viewing as guest" : isPremiumListener && isSyncEnabled ? "Listening along" : "Synced"}
-            </span>
+        <div className="flex flex-col gap-3 pt-3">
+          {/* Status row */}
+          <div className="flex items-center justify-between">
+            {/* Status badge */}
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${
+                syncStatus === "synced" || displayState.isPlaying 
+                  ? "bg-green-400" 
+                  : "bg-yellow-400"
+              } animate-pulse`} />
+              <span className="text-white/50 text-sm">
+                {isHost ? "Broadcasting" : isGuest && youtubeEnabled ? "Playing via YouTube" : isGuest ? "Viewing as guest" : isPremiumListener && isSyncEnabled ? "Listening along" : "Synced"}
+              </span>
+            </div>
             
             {/* YouTube playing indicator with controls */}
             {youtubeEnabled && youtubeStatus && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <motion.div
                   animate={{ 
                     boxShadow: youtubeStatus.isPlaying 
@@ -276,12 +279,12 @@ function NowPlayingBar({
                       : "0 0 0px rgba(239, 68, 68, 0)"
                   }}
                   transition={{ duration: 2, repeat: youtubeStatus.isPlaying ? Infinity : 0, ease: "easeInOut" }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/20 border border-red-500/30"
                 >
-                  <svg className="w-3 h-3 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
                   </svg>
-                  <span className="text-red-300 text-xs">{youtubeStatus.isPlaying ? "Playing" : "Paused"}</span>
+                  <span className="text-red-300 text-xs font-medium">{youtubeStatus.isPlaying ? "Playing" : "Paused"}</span>
                 </motion.div>
                 
                 {/* Mute toggle */}
@@ -290,16 +293,16 @@ function NowPlayingBar({
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={onYoutubeMuteToggle}
-                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
                     title={youtubeStatus.isMuted ? "Unmute" : "Mute"}
                   >
                     {youtubeStatus.isMuted ? (
-                      <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                       </svg>
                     ) : (
-                      <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                       </svg>
                     )}
@@ -312,10 +315,10 @@ function NowPlayingBar({
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => onYoutubeToggle(false)}
-                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
                     title="Stop YouTube"
                   >
-                    <svg className="w-3 h-3 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </motion.button>
@@ -329,7 +332,7 @@ function NowPlayingBar({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => onSyncToggle(!isSyncEnabled)}
-                className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                   isSyncEnabled 
                     ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" 
                     : "bg-white/10 text-white/50 border border-white/20"
@@ -341,9 +344,9 @@ function NowPlayingBar({
             )}
           </div>
 
-          {/* Music service buttons for guests */}
+          {/* Music service buttons */}
           {(isGuest || !isHost) && displayState.trackUri && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-3">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
