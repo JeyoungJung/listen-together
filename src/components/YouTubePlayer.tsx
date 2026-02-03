@@ -143,6 +143,16 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
         const data = await response.json();
 
         if (data.videoId) {
+          // Destroy existing player before setting new video
+          if (playerRef.current) {
+            try {
+              playerRef.current.destroy();
+            } catch {
+              // Ignore
+            }
+            playerRef.current = null;
+          }
+          setIsPlayerReady(false);
           setVideoId(data.videoId);
           setVideoTitle(data.title);
           lastSearchedTrack.current = trackKey;
@@ -162,9 +172,25 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
     searchVideo();
   }, [isEnabled, hostState?.trackName, hostState?.artistName]);
 
-  // Initialize/update YouTube player when videoId changes
+  // Store initial host state for player creation (don't re-run on every update)
+  const initialHostStateRef = useRef<{ progressMs: number; isPlaying: boolean } | null>(null);
+  
+  // Capture initial state when video changes
+  useEffect(() => {
+    if (videoId && hostState) {
+      initialHostStateRef.current = {
+        progressMs: hostState.progressMs || 0,
+        isPlaying: hostState.isPlaying || false,
+      };
+    }
+  }, [videoId]); // Only when videoId changes, not hostState
+
+  // Initialize YouTube player when videoId changes (only once per video)
   useEffect(() => {
     if (!isEnabled || !videoId || !containerRef.current) return;
+
+    // Don't re-create if player already exists for this video
+    if (playerRef.current) return;
 
     // Wait for API to load
     const waitForAPI = setInterval(() => {
@@ -175,18 +201,9 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
     }, 100);
 
     function initPlayer() {
-      // Destroy existing player
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch {
-          // Ignore
-        }
-        playerRef.current = null;
-      }
-
-      // Create new player
-      const startSeconds = hostState?.progressMs ? hostState.progressMs / 1000 : 0;
+      // Get initial position from stored ref
+      const initialState = initialHostStateRef.current;
+      const startSeconds = initialState?.progressMs ? initialState.progressMs / 1000 : 0;
       
       try {
         playerRef.current = new window.YT.Player("youtube-player-iframe", {
@@ -194,7 +211,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
           width: "100%",
           videoId: videoId || undefined,
           playerVars: {
-            autoplay: hostState?.isPlaying ? 1 : 0,
+            autoplay: initialState?.isPlaying ? 1 : 0,
             controls: 1,
             disablekb: 0,
             fs: 1,
@@ -207,7 +224,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
           events: {
             onReady: (event) => {
               setIsPlayerReady(true);
-              if (hostState?.isPlaying) {
+              if (initialState?.isPlaying) {
                 event.target.playVideo();
               }
             },
@@ -229,7 +246,7 @@ export function YouTubePlayer({ hostState, isEnabled, onToggle }: YouTubePlayerP
     return () => {
       clearInterval(waitForAPI);
     };
-  }, [isEnabled, videoId, hostState?.progressMs, hostState?.isPlaying]);
+  }, [isEnabled, videoId]); // Only depends on isEnabled and videoId, NOT hostState
 
   // Time update interval
   useEffect(() => {
