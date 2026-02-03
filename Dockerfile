@@ -1,21 +1,22 @@
-# Use Node.js 20 slim (Debian-based, more stable npm)
+# Use Node.js 20 slim (Debian-based)
 FROM node:20-slim
 
-# Install build dependencies
+# Install build dependencies and pnpm
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json ./
 
-# Use npm with --ignore-scripts first, then rebuild
-RUN npm install --legacy-peer-deps --ignore-scripts && \
-    npm rebuild && \
+# Install dependencies with pnpm (more reliable than npm)
+RUN pnpm install && \
     ls -la node_modules/.bin/ | head -10
 
 # Copy source code
@@ -23,7 +24,7 @@ COPY . .
 
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN ./node_modules/.bin/next build
+RUN pnpm run build
 
 # Set production environment
 ENV NODE_ENV=production
