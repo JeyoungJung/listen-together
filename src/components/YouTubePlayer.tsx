@@ -77,12 +77,14 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMutedState] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playerKey, setPlayerKey] = useState(0); // Increment to force new player
   
-  // Register setter globally for external control
+  // Register setters globally for external control
   const setIsMuted = (muted: boolean) => {
     setIsMutedState(muted);
   };
   globalRefs.setIsMuted = setIsMuted;
+  globalRefs.setIsPlaying = setIsPlaying;
   
   const lastLoadedVideoRef = useRef<string | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -136,12 +138,12 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     // If player exists and is ready, use loadVideoById for faster loading
     if (playerRef.current && isPlayerReady) {
       try {
-        // loadVideoById auto-plays by default, which is what we want
+        // loadVideoById auto-plays by default
         playerRef.current.loadVideoById(newVideoId, startSeconds);
         lastLoadedVideoRef.current = newVideoId;
         initialSyncDoneRef.current = false;
         
-        // Ensure playback starts - call playVideo after a brief delay to let video load
+        // Player is already muted, so autoplay will work
         if (shouldPlay) {
           setTimeout(() => {
             try {
@@ -149,7 +151,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
             } catch {
               // Ignore
             }
-          }, 300);
+          }, 200);
         } else {
           // Host is paused, pause after video loads
           setTimeout(() => {
@@ -224,16 +226,40 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     searchVideo();
   }, [isEnabled, hostState?.trackName, hostState?.artistName, hostState?.progressMs, hostState?.isPlaying, loadVideo]);
 
-  // Initialize YouTube player once (reuse for all videos)
+  // Clean up when disabled and prepare for re-enable
+  useEffect(() => {
+    if (!isEnabled) {
+      // Destroy player when disabled
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // Ignore
+        }
+        playerRef.current = null;
+        (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef = undefined;
+      }
+      setIsPlayerReady(false);
+      setIsPlaying(false);
+      lastLoadedVideoRef.current = null;
+      initialSyncDoneRef.current = false;
+      // Increment key so next enable creates fresh DOM element
+      setPlayerKey(k => k + 1);
+    }
+  }, [isEnabled]);
+
+  // Initialize YouTube player when enabled
   useEffect(() => {
     if (!isEnabled || !containerRef.current) return;
     
-    // Only create player once
+    // Only create player once per enable cycle
     if (playerRef.current) return;
 
-    // Wait for API to load
+    const playerId = `youtube-player-${playerKey}`;
+
+    // Wait for API to load and DOM element to exist
     const waitForAPI = setInterval(() => {
-      if (window.YT && window.YT.Player) {
+      if (window.YT && window.YT.Player && document.getElementById(playerId)) {
         clearInterval(waitForAPI);
         initPlayer();
       }
@@ -246,12 +272,12 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       const shouldPlay = pending?.shouldPlay ?? true;
       
       try {
-        playerRef.current = new window.YT.Player("youtube-player-iframe", {
+        playerRef.current = new window.YT.Player(playerId, {
           height: "100%",
           width: "100%",
           videoId: initialVideoId || undefined,
           playerVars: {
-            autoplay: shouldPlay ? 1 : 0,
+            autoplay: 1,
             controls: 1,
             disablekb: 0,
             fs: 1,
@@ -260,10 +286,12 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
             iv_load_policy: 3,
             playsinline: 1,
             start: Math.floor(startSeconds),
+            mute: 0, // Try unmuted first - user clicked "Join as Guest" so we have interaction
           },
           events: {
             onReady: (event) => {
               setIsPlayerReady(true);
+              setIsMuted(false); // Optimistically set to unmuted
               lastLoadedVideoRef.current = initialVideoId;
               // Store globally for external control
               (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef = event.target;
@@ -279,6 +307,22 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
               } else if (shouldPlay) {
                 event.target.playVideo();
               }
+              
+              // Check if autoplay worked after a short delay
+              // If blocked, fall back to muted playback
+              setTimeout(() => {
+                try {
+                  const state = event.target.getPlayerState();
+                  if (state !== YT_PLAYING && shouldPlay) {
+                    // Autoplay was blocked, mute and retry
+                    event.target.mute();
+                    setIsMuted(true);
+                    event.target.playVideo();
+                  }
+                } catch {
+                  // Ignore
+                }
+              }, 500);
               
               pendingVideoRef.current = null;
             },
@@ -300,7 +344,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     return () => {
       clearInterval(waitForAPI);
     };
-  }, [isEnabled, videoId]);
+  }, [isEnabled, videoId, playerKey]);
 
   // Time update interval
   useEffect(() => {
@@ -323,42 +367,82 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     };
   }, [isPlaying]);
 
-  // Sync playback with host
+  // Sync playback with host - only on significant events, not every currentTime update
   useEffect(() => {
     if (!isEnabled || !isPlayerReady || !videoId || !hostState || !playerRef.current) {
       return;
     }
 
-    try {
-      // Sync play/pause state
-      if (hostState.isPlaying && !isPlaying) {
-        playerRef.current.playVideo();
-      } else if (!hostState.isPlaying && isPlaying) {
-        playerRef.current.pauseVideo();
-      }
-
-      // Calculate expected host position accounting for time elapsed since update
-      const timeSinceUpdate = hostState.timestamp ? (Date.now() - hostState.timestamp) / 1000 : 0;
-      const expectedHostPosition = ((hostState.progressMs || 0) / 1000) + (hostState.isPlaying ? timeSinceUpdate : 0);
-      const drift = Math.abs(currentTime - expectedHostPosition);
-      const now = Date.now();
-      const timeSinceLastSync = now - lastSyncTimeRef.current;
-
-      // Only sync if:
-      // 1. Initial sync hasn't been done yet, OR
-      // 2. Drift is significant AND cooldown has passed
-      const shouldSync = !initialSyncDoneRef.current || 
-        (drift > SYNC_TOLERANCE && timeSinceLastSync > SYNC_COOLDOWN && hostState.isPlaying);
-
-      if (shouldSync && hostState.isPlaying) {
-        playerRef.current.seekTo(expectedHostPosition, true);
-        lastSyncTimeRef.current = now;
-        initialSyncDoneRef.current = true;
-      }
-    } catch {
-      // Player might not be ready
+    // Handle play/pause state changes
+    if (hostState.isPlaying && !isPlaying) {
+      playerRef.current?.playVideo();
+    } else if (!hostState.isPlaying && isPlaying) {
+      playerRef.current?.pauseVideo();
     }
-  }, [isEnabled, isPlayerReady, videoId, hostState, isPlaying, currentTime]);
+
+    // Do initial sync when video first loads or host state changes significantly
+    if (!initialSyncDoneRef.current && hostState.isPlaying) {
+      const timeSinceUpdate = hostState.timestamp ? (Date.now() - hostState.timestamp) / 1000 : 0;
+      const expectedPosition = ((hostState.progressMs || 0) / 1000) + timeSinceUpdate;
+      playerRef.current?.seekTo(expectedPosition, true);
+      lastSyncTimeRef.current = Date.now();
+      initialSyncDoneRef.current = true;
+    }
+  }, [isEnabled, isPlayerReady, videoId, hostState, isPlaying]);
+
+  // Periodic drift correction - separate from play/pause logic
+  useEffect(() => {
+    if (!isEnabled || !isPlayerReady || !hostState?.isPlaying) {
+      return;
+    }
+
+    // Check drift every 5 seconds, but only correct if really needed
+    const driftCheckInterval = setInterval(() => {
+      if (!playerRef.current || !hostState.isPlaying) return;
+      
+      try {
+        const playerTime = playerRef.current.getCurrentTime();
+        const timeSinceUpdate = hostState.timestamp ? (Date.now() - hostState.timestamp) / 1000 : 0;
+        const expectedPosition = ((hostState.progressMs || 0) / 1000) + timeSinceUpdate;
+        const drift = Math.abs(playerTime - expectedPosition);
+        const now = Date.now();
+        const timeSinceLastSync = now - lastSyncTimeRef.current;
+
+        // Only sync if drift is large AND we haven't synced recently
+        if (drift > SYNC_TOLERANCE && timeSinceLastSync > SYNC_COOLDOWN) {
+          playerRef.current.seekTo(expectedPosition, true);
+          lastSyncTimeRef.current = now;
+        }
+      } catch {
+        // Player might not be ready
+      }
+    }, 5000);
+
+    return () => clearInterval(driftCheckInterval);
+  }, [isEnabled, isPlayerReady, hostState]);
+
+  // Simple retry logic - player is already muted so just keep trying to play
+  useEffect(() => {
+    if (!isEnabled || !isPlayerReady || !hostState?.isPlaying) {
+      return;
+    }
+
+    // Single retry after a short delay
+    const retryTimeout = setTimeout(() => {
+      if (!playerRef.current) return;
+      
+      try {
+        const playerState = playerRef.current.getPlayerState();
+        if (playerState !== YT_PLAYING && hostState.isPlaying) {
+          playerRef.current.playVideo();
+        }
+      } catch {
+        // Ignore
+      }
+    }, 500);
+
+    return () => clearTimeout(retryTimeout);
+  }, [isEnabled, isPlayerReady, hostState?.isPlaying]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -394,9 +478,8 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       className="fixed -top-[1000px] -left-[1000px] w-1 h-1 overflow-hidden pointer-events-none"
       aria-hidden="true"
     >
-      {videoId && !searchError && (
-        <div id="youtube-player-iframe" />
-      )}
+      {/* Always render the iframe target - player will load video when ready */}
+      <div key={playerKey} id={`youtube-player-${playerKey}`} />
     </div>
   );
 }
@@ -404,6 +487,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
 // Global refs for external control
 const globalRefs = {
   setIsMuted: null as ((muted: boolean) => void) | null,
+  setIsPlaying: null as ((playing: boolean) => void) | null,
 };
 
 function getPlayer(): YTPlayer | null {
@@ -426,6 +510,57 @@ export function useYouTubeControls() {
           player.mute();
           globalRefs.setIsMuted?.(true);
         }
+      } catch {
+        // Ignore
+      }
+    },
+    play: () => {
+      const player = getPlayer();
+      if (!player) {
+        console.log("YouTube player not ready");
+        return;
+      }
+      
+      try {
+        // First attempt: try playing directly
+        player.playVideo();
+        
+        // Check after a short delay if playback started
+        setTimeout(() => {
+          try {
+            const state = player.getPlayerState();
+            // If not playing (state 1), try muting and playing again
+            if (state !== 1) {
+              console.log("Playback blocked, trying muted playback");
+              player.mute();
+              globalRefs.setIsMuted?.(true);
+              player.playVideo();
+              
+              // Check again
+              setTimeout(() => {
+                const newState = player.getPlayerState();
+                if (newState === 1) {
+                  globalRefs.setIsPlaying?.(true);
+                }
+              }, 200);
+            } else {
+              globalRefs.setIsPlaying?.(true);
+            }
+          } catch {
+            // Ignore
+          }
+        }, 300);
+      } catch (e) {
+        console.error("Error playing video:", e);
+      }
+    },
+    pause: () => {
+      const player = getPlayer();
+      if (!player) return;
+      
+      try {
+        player.pauseVideo();
+        globalRefs.setIsPlaying?.(false);
       } catch {
         // Ignore
       }

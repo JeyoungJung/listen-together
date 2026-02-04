@@ -37,6 +37,7 @@ interface HUDProps {
   onYoutubeToggle?: (enabled: boolean) => void;
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
+  onYoutubePlayToggle?: () => void;
 }
 
 // ============================================================================
@@ -258,6 +259,7 @@ function NowPlayingBar({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
+  onYoutubePlayToggle,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -272,6 +274,7 @@ function NowPlayingBar({
   onYoutubeToggle?: (enabled: boolean) => void;
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
+  onYoutubePlayToggle?: () => void;
 }) {
   // Interpolate progress for smooth updates (instead of jumping every 3s)
   const interpolatedProgress = useInterpolatedProgress({
@@ -427,11 +430,13 @@ function NowPlayingBar({
                 <svg className="w-3 h-3 text-red-400" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
                 </svg>
+                
+                {/* Simple status - no prompts */}
                 <span className="text-[10px] text-red-300/80 font-medium">
-                  {youtubeStatus.isPlaying ? "Playing" : "Paused"}
+                  {youtubeStatus.isPlaying ? "Playing" : "Loading..."}
                 </span>
                 
-                {/* Inline controls */}
+                {/* Inline controls - mute toggle and close */}
                 <div className="flex items-center gap-0.5 ml-1">
                   {onYoutubeMuteToggle && (
                     <button
@@ -687,6 +692,7 @@ export function HUD({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
+  onYoutubePlayToggle,
 }: HUDProps) {
   // Landing page for unauthenticated users
   if (!session && !isGuest) {
@@ -723,6 +729,7 @@ export function HUD({
             onYoutubeToggle={onYoutubeToggle}
             youtubeStatus={youtubeStatus}
             onYoutubeMuteToggle={onYoutubeMuteToggle}
+            onYoutubePlayToggle={onYoutubePlayToggle}
           />
         </AnimatePresence>
       </div>
