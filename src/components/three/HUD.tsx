@@ -435,7 +435,7 @@ function NowPlayingBar({
                 </svg>
                 
                 <span className="text-[10px] text-red-300/80 font-medium">
-                  {youtubeStatus.isPlaying ? "Playing" : "Loading..."}
+                  {youtubeStatus.isPlaying ? "Playing" : "Paused"}
                 </span>
                 
                 <div className="flex items-center gap-0.5 ml-1">
