@@ -218,6 +218,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       (window as unknown as { ytPlayerRef?: YTPlayer }).ytPlayerRef = undefined;
       setIsPlayerReady(false);
       setIsPlaying(false);
+      setIsMuted(false); // Reset to unmuted for next time
       lastLoadedVideoRef.current = null;
       initialSyncDoneRef.current = false;
       setPlayerKey(k => k + 1);
@@ -296,6 +297,23 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
                     event.target.mute();
                     setIsMuted(true);
                     event.target.playVideo();
+                    
+                    // Try to unmute after muted playback starts (audio context may be unlocked now)
+                    setTimeout(() => {
+                      safePlayerCall(() => {
+                        if (event.target.getPlayerState() === YT_PLAYING) {
+                          event.target.unMute();
+                          // Check if unmute worked
+                          setTimeout(() => {
+                            safePlayerCall(() => {
+                              if (event.target.getPlayerState() === YT_PLAYING) {
+                                setIsMuted(event.target.isMuted());
+                              }
+                            });
+                          }, 100);
+                        }
+                      });
+                    }, 300);
                   }
                 });
               }, 500);
