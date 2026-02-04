@@ -138,16 +138,18 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     
     if (playerRef.current && isPlayerReady) {
       safePlayerCall(() => {
-        playerRef.current!.loadVideoById(newVideoId, startSeconds);
+        // If host is paused, use cueVideoById instead to avoid auto-play
+        if (!shouldPlay) {
+          playerRef.current!.loadVideoById(newVideoId, startSeconds);
+          // Immediately pause to prevent any playback
+          playerRef.current!.pauseVideo();
+          setTimeout(() => safePlayerCall(() => playerRef.current?.pauseVideo()), 100);
+        } else {
+          playerRef.current!.loadVideoById(newVideoId, startSeconds);
+          setTimeout(() => safePlayerCall(() => playerRef.current?.playVideo()), 200);
+        }
         lastLoadedVideoRef.current = newVideoId;
         initialSyncDoneRef.current = false;
-        
-        const playAction = shouldPlay 
-          ? () => playerRef.current?.playVideo()
-          : () => playerRef.current?.pauseVideo();
-        const delay = shouldPlay ? 200 : 500;
-        
-        setTimeout(() => safePlayerCall(playAction), delay);
       });
     } else {
       pendingVideoRef.current = { videoId: newVideoId, startSeconds, shouldPlay };
@@ -241,7 +243,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
       const pending = pendingVideoRef.current;
       const initialVideoId = pending?.videoId || videoId;
       const startSeconds = pending?.startSeconds || 0;
-      const shouldPlay = pending?.shouldPlay ?? true;
+      const shouldPlay = pending?.shouldPlay ?? hostState?.isPlaying ?? true;
       
       try {
         playerRef.current = new window.YT.Player(playerId, {
@@ -249,7 +251,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
           width: "100%",
           videoId: initialVideoId || undefined,
           playerVars: {
-            autoplay: 1,
+            autoplay: shouldPlay ? 1 : 0, // Only autoplay if host is playing
             controls: 1,
             disablekb: 0,
             fs: 1,
@@ -274,9 +276,14 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
                 lastLoadedVideoRef.current = pendingId;
                 if (pendingPlay) {
                   event.target.playVideo();
+                } else {
+                  event.target.pauseVideo();
                 }
               } else if (shouldPlay) {
                 event.target.playVideo();
+              } else {
+                // Host is paused, ensure we're paused too
+                event.target.pauseVideo();
               }
               
               // Check if autoplay worked, fall back to muted if blocked
