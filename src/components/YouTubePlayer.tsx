@@ -75,10 +75,12 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
+  const [showMiniPlayer, setShowMiniPlayer] = useState(false);
   
   // Register setters globally for external control
   globalRefs.setIsMuted = setIsMuted;
   globalRefs.setIsPlaying = setIsPlaying;
+  globalRefs.setShowMiniPlayer = setShowMiniPlayer;
   
   const lastLoadedVideoRef = useRef<string | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -389,6 +391,37 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     return () => clearTimeout(retryTimeout);
   }, [isEnabled, isPlayerReady, hostState?.isPlaying]);
 
+  // Resume playback when tab becomes visible again
+  useEffect(() => {
+    if (!isEnabled || !isPlayerReady) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && hostState?.isPlaying) {
+        // Tab became visible and host is playing - resume playback
+        setTimeout(() => {
+          safePlayerCall(() => {
+            if (playerRef.current) {
+              const playerState = playerRef.current.getPlayerState();
+              if (playerState !== YT_PLAYING) {
+                playerRef.current.playVideo();
+                
+                // Also sync position since time has passed
+                if (hostState.progressMs !== undefined && hostState.timestamp) {
+                  const timeSinceUpdate = (Date.now() - hostState.timestamp) / 1000;
+                  const expectedPosition = (hostState.progressMs / 1000) + timeSinceUpdate;
+                  playerRef.current.seekTo(expectedPosition, true);
+                }
+              }
+            }
+          });
+        }, 100);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isEnabled, isPlayerReady, hostState]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -410,6 +443,31 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
     return null;
   }
 
+  // Mini player mode - visible in corner for PiP support
+  if (showMiniPlayer) {
+    return (
+      <div 
+        ref={containerRef}
+        className="fixed bottom-24 right-4 z-50 rounded-lg overflow-hidden shadow-2xl border border-white/20 bg-black"
+        style={{ width: '320px', height: '180px' }}
+      >
+        <div key={playerKey} id={`youtube-player-${playerKey}`} className="w-full h-full" />
+        <button
+          onClick={() => setShowMiniPlayer(false)}
+          className="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
+          aria-label="Close mini player"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div className="absolute bottom-2 left-2 text-[10px] text-white/60 bg-black/60 px-2 py-1 rounded">
+          Right-click video → Picture in Picture
+        </div>
+      </div>
+    );
+  }
+
   // Hidden YouTube player - audio only, no visual UI
   // Controls are shown in the HUD via onStatusChange callback
   return (
@@ -428,6 +486,7 @@ export function YouTubePlayer({ hostState, isEnabled, onStatusChange }: YouTubeP
 const globalRefs = {
   setIsMuted: null as ((muted: boolean) => void) | null,
   setIsPlaying: null as ((playing: boolean) => void) | null,
+  setShowMiniPlayer: null as ((show: boolean) => void) | null,
 };
 
 function getPlayer(): YTPlayer | null {
@@ -507,6 +566,12 @@ export function useYouTubeControls() {
           player.playVideo();
         }
       });
+    },
+    showMiniPlayer: () => {
+      globalRefs.setShowMiniPlayer?.(true);
+    },
+    hideMiniPlayer: () => {
+      globalRefs.setShowMiniPlayer?.(false);
     },
   };
 }

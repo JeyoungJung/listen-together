@@ -255,7 +255,7 @@ export function ListenTogether3D() {
         onYoutubeToggle={setYoutubeEnabled}
         youtubeStatus={youtubeStatus}
         onYoutubeMuteToggle={youtubeControls.toggleMute}
-        onYoutubePlayToggle={youtubeControls.play}
+        onYoutubePiP={youtubeControls.showMiniPlayer}
       />
 
       {/* YouTube Player for guests (hidden - audio only) */}

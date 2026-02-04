@@ -37,7 +37,7 @@ interface HUDProps {
   onYoutubeToggle?: (enabled: boolean) => void;
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
-  onYoutubePlayToggle?: () => void;
+  onYoutubePiP?: () => void;
 }
 
 // ============================================================================
@@ -264,6 +264,7 @@ function NowPlayingBar({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
+  onYoutubePiP,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -278,6 +279,7 @@ function NowPlayingBar({
   onYoutubeToggle?: (enabled: boolean) => void;
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
+  onYoutubePiP?: () => void;
 }) {
   // Interpolate progress for smooth updates (instead of jumping every 3s)
   const interpolatedProgress = useInterpolatedProgress({
@@ -451,6 +453,18 @@ function NowPlayingBar({
                         ) : (
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                         )}
+                      </svg>
+                    </button>
+                  )}
+                  {onYoutubePiP && (
+                    <button
+                      onClick={onYoutubePiP}
+                      aria-label="Picture in Picture"
+                      title="Open mini player for PiP"
+                      className="p-1 rounded-md hover:bg-white/10 transition-colors"
+                    >
+                      <svg className="w-3 h-3 text-white/50" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
                       </svg>
                     </button>
                   )}
@@ -693,6 +707,7 @@ export function HUD({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
+  onYoutubePiP,
 }: HUDProps) {
   // Landing page for unauthenticated users
   if (!session && !isGuest) {
@@ -729,6 +744,7 @@ export function HUD({
             onYoutubeToggle={onYoutubeToggle}
             youtubeStatus={youtubeStatus}
             onYoutubeMuteToggle={onYoutubeMuteToggle}
+            onYoutubePiP={onYoutubePiP}
           />
         </AnimatePresence>
       </div>
