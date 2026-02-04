@@ -50,10 +50,15 @@ function getStatusText(
   isPremiumListener: boolean,
   isSyncEnabled: boolean
 ): string {
-  if (isHost) return "Broadcasting";
-  if (isGuest && youtubeEnabled) return "YouTube";
-  if (isGuest) return "Guest";
-  if (isPremiumListener && isSyncEnabled) return "Synced";
+  if (isHost) {
+    return "Broadcasting";
+  }
+  if (isGuest) {
+    return youtubeEnabled ? "YouTube" : "Guest";
+  }
+  if (isPremiumListener && isSyncEnabled) {
+    return "Synced";
+  }
   return "Connected";
 }
 
@@ -259,7 +264,6 @@ function NowPlayingBar({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
-  onYoutubePlayToggle,
 }: {
   displayState: HostUpdate | null;
   isHost: boolean;
@@ -274,7 +278,6 @@ function NowPlayingBar({
   onYoutubeToggle?: (enabled: boolean) => void;
   youtubeStatus?: { isPlaying: boolean; isMuted: boolean };
   onYoutubeMuteToggle?: () => void;
-  onYoutubePlayToggle?: () => void;
 }) {
   // Interpolate progress for smooth updates (instead of jumping every 3s)
   const interpolatedProgress = useInterpolatedProgress({
@@ -431,12 +434,10 @@ function NowPlayingBar({
                   <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
                 </svg>
                 
-                {/* Simple status - no prompts */}
                 <span className="text-[10px] text-red-300/80 font-medium">
                   {youtubeStatus.isPlaying ? "Playing" : "Loading..."}
                 </span>
                 
-                {/* Inline controls - mute toggle and close */}
                 <div className="flex items-center gap-0.5 ml-1">
                   {onYoutubeMuteToggle && (
                     <button
@@ -488,74 +489,74 @@ function NowPlayingBar({
             {/* Right: Service Buttons */}
             {(isGuest || !isHost) && displayState.trackUri && (
               <div className={`flex items-center gap-2 ${youtubeEnabled ? 'w-full justify-center' : 'ml-auto'}`}>
-              {/* Sync Toggle (Premium only) */}
-              {isPremiumListener && onSyncToggle && (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  transition={springConfig.snappy}
-                  onClick={() => onSyncToggle(!isSyncEnabled)}
-                  aria-label={isSyncEnabled ? "Disable sync" : "Enable sync"}
-                  className={`
-                    px-3 py-1.5 rounded-xl text-[11px] font-semibold tracking-tight
-                    transition-all duration-200
-                    shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]
-                    ${isSyncEnabled 
-                      ? "bg-violet-500/20 text-violet-300 border border-violet-500/30" 
-                      : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"
-                    }
-                  `}
-                >
-                  {isSyncEnabled ? "Synced" : "Sync"}
-                </motion.button>
-              )}
-              
-              {/* Apple Music */}
-              <IconButton
-                onClick={() => onOpenAppleMusic(displayState.trackUri!)}
-                label="Open in Apple Music"
-                variant="apple"
-              >
-                {appleMusicLoading ? (
-                  <div className="w-[18px] h-[18px] border-2 border-white/20 border-t-pink-400 rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043a5.022 5.022 0 00-1.877-.726 10.496 10.496 0 00-1.564-.15c-.04-.003-.083-.01-.124-.013H5.986c-.152.01-.303.017-.455.026-.747.043-1.49.123-2.193.4-1.336.53-2.3 1.452-2.865 2.78-.192.448-.292.925-.363 1.408-.056.392-.088.785-.1 1.18 0 .032-.007.062-.01.093v12.223c.01.14.017.283.027.424.05.815.154 1.624.497 2.373.65 1.42 1.738 2.353 3.234 2.802.42.127.856.187 1.293.228.555.053 1.11.06 1.667.06h11.03a12.5 12.5 0 001.57-.1c.822-.106 1.596-.35 2.295-.81a5.046 5.046 0 001.88-2.207c.186-.42.293-.87.37-1.324.113-.675.138-1.358.137-2.04-.002-3.8 0-7.595-.003-11.393zm-6.423 3.99v5.712c0 .417-.058.827-.244 1.206-.29.59-.76.962-1.388 1.14-.35.1-.706.157-1.07.173-.95.042-1.785-.455-2.105-1.245-.38-.94.093-2.003 1.116-2.439.285-.12.578-.217.878-.274.374-.07.754-.112 1.13-.171.265-.042.528-.092.786-.16.304-.078.472-.282.506-.596.01-.095.015-.19.015-.285V7.087c0-.206-.038-.386-.238-.47-.116-.05-.243-.073-.37-.086-.343-.036-.687-.065-1.03-.098l-2.825-.27-1.96-.188c-.083-.008-.167-.012-.25-.023-.17-.023-.295.05-.357.2-.03.076-.043.16-.043.242v7.63c0 .32-.02.64-.11.95-.19.64-.53 1.15-1.1 1.51-.34.21-.72.33-1.11.39-.5.07-.99.07-1.48-.05-.87-.22-1.45-.8-1.65-1.67-.21-.91.17-1.89 1.05-2.35.37-.19.77-.31 1.18-.39.47-.09.94-.15 1.41-.23.27-.05.54-.1.8-.17.28-.08.47-.27.52-.56.02-.1.02-.21.02-.31V4.67c0-.19.03-.38.12-.55.12-.21.31-.32.54-.32.1 0 .2.01.3.03.46.05.93.1 1.39.15l3.4.33 2.74.26c.3.03.6.06.9.11.17.03.3.13.36.3.04.1.05.2.05.31v5.33z"/>
-                  </svg>
+                {/* Sync Toggle (Premium only) */}
+                {isPremiumListener && onSyncToggle && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    transition={springConfig.snappy}
+                    onClick={() => onSyncToggle(!isSyncEnabled)}
+                    aria-label={isSyncEnabled ? "Disable sync" : "Enable sync"}
+                    className={`
+                      px-3 py-1.5 rounded-xl text-[11px] font-semibold tracking-tight
+                      transition-all duration-200
+                      shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]
+                      ${isSyncEnabled 
+                        ? "bg-violet-500/20 text-violet-300 border border-violet-500/30" 
+                        : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"
+                      }
+                    `}
+                  >
+                    {isSyncEnabled ? "Synced" : "Sync"}
+                  </motion.button>
                 )}
-              </IconButton>
-              
-              {/* Spotify */}
-              <a
-                href={`https://open.spotify.com/track/${displayState.trackUri.replace('spotify:track:', '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open in Spotify"
-                className="
-                  p-2.5 rounded-2xl
-                  bg-white/[0.04] hover:bg-emerald-500/20
-                  border border-white/[0.06]
-                  shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]
-                  transition-colors duration-200
-                "
-              >
-                <svg className="w-[18px] h-[18px] text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
-                </svg>
-              </a>
-
-              {/* YouTube Player Toggle (Guests only) */}
-              {isGuest && onYoutubeToggle && !youtubeEnabled && (
+                
+                {/* Apple Music */}
                 <IconButton
-                  onClick={() => onYoutubeToggle(!youtubeEnabled)}
-                  label={youtubeEnabled ? "Stop YouTube" : "Play on YouTube"}
-                  variant="youtube"
-                  active={youtubeEnabled}
+                  onClick={() => onOpenAppleMusic(displayState.trackUri!)}
+                  label="Open in Apple Music"
+                  variant="apple"
                 >
-                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                  </svg>
+                  {appleMusicLoading ? (
+                    <div className="w-[18px] h-[18px] border-2 border-white/20 border-t-pink-400 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043a5.022 5.022 0 00-1.877-.726 10.496 10.496 0 00-1.564-.15c-.04-.003-.083-.01-.124-.013H5.986c-.152.01-.303.017-.455.026-.747.043-1.49.123-2.193.4-1.336.53-2.3 1.452-2.865 2.78-.192.448-.292.925-.363 1.408-.056.392-.088.785-.1 1.18 0 .032-.007.062-.01.093v12.223c.01.14.017.283.027.424.05.815.154 1.624.497 2.373.65 1.42 1.738 2.353 3.234 2.802.42.127.856.187 1.293.228.555.053 1.11.06 1.667.06h11.03a12.5 12.5 0 001.57-.1c.822-.106 1.596-.35 2.295-.81a5.046 5.046 0 001.88-2.207c.186-.42.293-.87.37-1.324.113-.675.138-1.358.137-2.04-.002-3.8 0-7.595-.003-11.393zm-6.423 3.99v5.712c0 .417-.058.827-.244 1.206-.29.59-.76.962-1.388 1.14-.35.1-.706.157-1.07.173-.95.042-1.785-.455-2.105-1.245-.38-.94.093-2.003 1.116-2.439.285-.12.578-.217.878-.274.374-.07.754-.112 1.13-.171.265-.042.528-.092.786-.16.304-.078.472-.282.506-.596.01-.095.015-.19.015-.285V7.087c0-.206-.038-.386-.238-.47-.116-.05-.243-.073-.37-.086-.343-.036-.687-.065-1.03-.098l-2.825-.27-1.96-.188c-.083-.008-.167-.012-.25-.023-.17-.023-.295.05-.357.2-.03.076-.043.16-.043.242v7.63c0 .32-.02.64-.11.95-.19.64-.53 1.15-1.1 1.51-.34.21-.72.33-1.11.39-.5.07-.99.07-1.48-.05-.87-.22-1.45-.8-1.65-1.67-.21-.91.17-1.89 1.05-2.35.37-.19.77-.31 1.18-.39.47-.09.94-.15 1.41-.23.27-.05.54-.1.8-.17.28-.08.47-.27.52-.56.02-.1.02-.21.02-.31V4.67c0-.19.03-.38.12-.55.12-.21.31-.32.54-.32.1 0 .2.01.3.03.46.05.93.1 1.39.15l3.4.33 2.74.26c.3.03.6.06.9.11.17.03.3.13.36.3.04.1.05.2.05.31v5.33z"/>
+                    </svg>
+                  )}
                 </IconButton>
-              )}
+                
+                {/* Spotify */}
+                <a
+                  href={`https://open.spotify.com/track/${displayState.trackUri.replace('spotify:track:', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open in Spotify"
+                  className="
+                    p-2.5 rounded-2xl
+                    bg-white/[0.04] hover:bg-emerald-500/20
+                    border border-white/[0.06]
+                    shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]
+                    transition-colors duration-200
+                  "
+                >
+                  <svg className="w-[18px] h-[18px] text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
+                  </svg>
+                </a>
+
+                {/* YouTube Player Toggle (Guests only) */}
+                {isGuest && onYoutubeToggle && !youtubeEnabled && (
+                  <IconButton
+                    onClick={() => onYoutubeToggle(!youtubeEnabled)}
+                    label={youtubeEnabled ? "Stop YouTube" : "Play on YouTube"}
+                    variant="youtube"
+                    active={youtubeEnabled}
+                  >
+                    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                    </svg>
+                  </IconButton>
+                )}
               </div>
             )}
           </div>
@@ -692,7 +693,6 @@ export function HUD({
   onYoutubeToggle,
   youtubeStatus,
   onYoutubeMuteToggle,
-  onYoutubePlayToggle,
 }: HUDProps) {
   // Landing page for unauthenticated users
   if (!session && !isGuest) {
@@ -729,7 +729,6 @@ export function HUD({
             onYoutubeToggle={onYoutubeToggle}
             youtubeStatus={youtubeStatus}
             onYoutubeMuteToggle={onYoutubeMuteToggle}
-            onYoutubePlayToggle={onYoutubePlayToggle}
           />
         </AnimatePresence>
       </div>

@@ -263,7 +263,6 @@ export function ListenTogether3D() {
         <YouTubePlayer
           hostState={displayState}
           isEnabled={youtubeEnabled}
-          onToggle={setYoutubeEnabled}
           onStatusChange={setYoutubeStatus}
         />
       )}
